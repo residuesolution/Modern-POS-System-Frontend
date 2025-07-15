@@ -1,4 +1,4 @@
-# Cloud ERP - Frontend (Sales Module)
+# Modern POS System – Frontend
 
 <div align="center">
   <img src="https://img.shields.io/badge/React-18.x-61DAFB" alt="React">
@@ -12,27 +12,25 @@
 
 ## 📋 Overview
 
-This is the **Frontend of the Cloud ERP System**, designed specifically for the Sales Module. It is implemented as a modern web application using **React.js**, **Next.js (App Router)**, **Redux Toolkit**, and **Tailwind CSS**, following a layered architecture for scalability and maintainability. The application is fully containerized with Docker for seamless deployment.
-
-The frontend communicates with the **Cloud ERP Services backend** to provide clean, efficient, and user-friendly interfaces for all sales-related operations.
+This is the **Frontend** of the **Modern POS System** for retail and hospitality, built as a scalable and modular web application using **React.js**, **Next.js (App Router)**, **Redux Toolkit**, and **Tailwind CSS**. The frontend is designed for optimal user experience, real-time operations, and seamless integration with the backend (Spring Boot) and third-party services. The app is containerized with Docker for efficient development and deployment.
 
 ## 🚀 Technology Stack
 
 ### 🔧 Frontend
-- **React.js** `19.x` — for building dynamic UI components
-- **Next.js** `15.x` (App Router) — for server-side rendering and routing
-- **Redux Toolkit** — for state management
-- **Tailwind CSS** — for responsive, utility-first styling
-- **Axios** — for API requests to the backend
-- **React Hook Form** — for form handling and validation
-- **Layered Architecture** — for modular, maintainable code
-- **Docker** — for containerization and deployment
+- **React.js 18.x:** Dynamic and responsive UI components
+- **Next.js 14.x (App Router):** Server-side rendering, routing, and scalability
+- **Redux Toolkit:** Predictable, high-performance state management
+- **Tailwind CSS:** Utility-first, responsive styling
+- **Axios:** API requests to backend services
+- **React Hook Form:** Robust form state management and validation
+- **Layered Architecture:** For modular and maintainable codebase
+- **Docker:** Containerization and deployment
 
 ### ⚙️ Build & Tools
-- **Node.js** `20.x` (LTS) — runtime environment
-- **npm** — package management
-- **ESLint & Prettier** — code linting and formatting
-- **Jest & React Testing Library** — frontend testing
+- **Node.js 20.x (LTS):** Runtime environment
+- **npm:** Dependency and build management
+- **ESLint & Prettier:** Linting and code formatting
+- **Jest & React Testing Library:** Unit and integration tests
 
 ## 📦 Project Dependencies
 
@@ -51,34 +49,34 @@ Key dependencies used in the project:
 
 ## ✅ Functional Requirements Overview
 
-The frontend provides a responsive and intuitive interface for the following features:
-
 ### 1. Inventory Management
-- View, add, update, and delete inventory records
+- View, add, update, and delete inventories, with real-time status and alerts
 
 ### 2. Suppliers Management
-- View, add, update, and delete supplier records
+- View, add, update, and delete supplier information
 
 ### 3. Customers Management
-- View, add, update, and delete customer records
+- View, add, update, and delete customer records and purchase histories
 
 ### 4. Sales Management
-- View, add, update, and delete sales
-- Visualize sales insights and trends with analytics dashboards
+- Scan/add products, process multi-mode payments
+- View, add, update, and delete sales transactions
+- See insights and trends in sales analytics dashboards
 
 ### 5. Reports Management
-- View, add, update, and delete reports and invoices
+- View, add, update, delete reports and invoices
 - Export data and reports as JSON, PDF, and CSV
 
 ### 6. Authentication & Authorization
-- Register and log in users
-- Handle forgot/reset password flows
-- Implement role-based access control
+- User registration and login flows
+- Forgot and reset password
+- Role-based access control (admin, cashier, manager)
+- (Optionally) biometric authentication support
 
 ## 📂 Project Structure
 
 ```
-📂 cloud_erp_frontend/
+📂 modern_pos_frontend/
 ├── 📂 app/
 │   ├── 📂 admin/
 │   ├── 📂 auth/
@@ -104,17 +102,17 @@ The frontend provides a responsive and intuitive interface for the following fea
 └── 📄 README.md
 ```
 
-## 🚀 Getting Started
+## 🛠️ Setup Instructions
 
 ### Prerequisites
-- Node.js 20.x (LTS) or higher
-- npm 10.x or higher
-- Docker (optional)
+- **Node.js** 20.x or higher
+- **npm** 10.x or higher
+- **Docker** (for containerization and deployment)
 
 ### Installation
 
 1. **Clone the repository**
    ```bash
-   git clone https://github.com/yourusername/cloud-erp-frontend.git
-   cd cloud-erp-frontend
+   git clone https://github.com/residuesolution/modern_pos_frontend.git
+   cd modern_pos_frontend
    ```
