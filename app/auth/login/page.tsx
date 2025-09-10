@@ -10,6 +10,7 @@ export default function Login() {
   const [password, setPassword] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
+  const [success, setSuccess] = useState(""); // Success message state
   const [showPassword, setShowPassword] = useState(false);
   const [isClient, setIsClient] = useState(false);
   const [rememberMe, setRememberMe] = useState(false);
@@ -24,13 +25,14 @@ export default function Login() {
     e.preventDefault();
     setIsLoading(true);
     setError("");
+    setSuccess("");
     try {
       const result = await loginUser(username, password);
 
-      // ✅ Backend always returns { status, message, token? }
       if (result.status === "success" && result.token) {
-        localStorage.setItem("authToken", result.token); // <-- Save token here
-        router.push("/dashboard");
+        localStorage.setItem("authToken", result.token);
+        setSuccess("Login successful! Redirecting...");
+        setTimeout(() => router.push("/dashboard"), 1500);
       } else {
         setError(result.message || "Invalid credentials. Please try again.");
       }
@@ -86,6 +88,13 @@ export default function Login() {
               <p className="text-xs text-gray-600 my-3">OR</p>
               <div className="text-black text-sm">Sign In with Credentials</div>
             </div>
+
+            {/* Success message */}
+            {success && (
+              <div className="mb-4 p-3 bg-green-50 border border-green-200 text-green-700 rounded-lg text-xs text-center">
+                {success}
+              </div>
+            )}
 
             {/* Error message */}
             {error && (

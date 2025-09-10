@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import ProfileHeader from "../../../components/ProfileHeader";
 import { fetchSystemConfig, fetchCurrentUser } from "../../../services/authService";
 
@@ -8,22 +9,29 @@ export default function SystemConfigurationPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [user, setUser] = useState<any>(null);
+  const router = useRouter();
 
   useEffect(() => {
     let ws: WebSocket | null = null;
-    const wsUrl = `${process.env.NEXT_PUBLIC_API_URL?.replace(/^http/, "ws")}/ws/status`; // Correct WebSocket URL
-    console.log("Attempting to connect to WebSocket for System Config:", wsUrl); // Log for debugging
+    const wsUrl = `${process.env.NEXT_PUBLIC_API_URL?.replace(/^http/, "ws")}/ws/status`;
 
     async function loadData() {
       setLoading(true);
       setError("");
       try {
         const userData = await fetchCurrentUser();
-        setUser(
+        const currentUser =
           (userData && typeof userData === "object" && "user" in userData && userData.user) ||
           (userData && typeof userData === "object" && "data" in userData && userData.data) ||
-          userData
-        );
+          userData;
+        setUser(currentUser);
+
+        // Redirect if not admin
+        if (currentUser?.role !== "ADMIN") {
+          router.replace("/dashboard");
+          return;
+        }
+
         const data = await fetchSystemConfig();
         setConfig(Array.isArray(data) ? data[0] : data);
       } catch (err: any) {
@@ -34,8 +42,7 @@ export default function SystemConfigurationPage() {
     }
     loadData();
 
-    // WebSocket for real-time updates
-    ws = new WebSocket(wsUrl); // Correct WebSocket initialization
+    ws = new WebSocket(wsUrl);
     ws.onmessage = (event) => {
       try {
         const msg = JSON.parse(event.data);
@@ -49,8 +56,12 @@ export default function SystemConfigurationPage() {
         console.error("Error parsing WebSocket message:", error);
       }
     };
-  
-  }, []);
+
+    // Cleanup WebSocket on unmount
+    return () => {
+      if (ws) ws.close();
+    };
+  }, [router]);
 
   return (
     <div className="relative w-full flex flex-col items-center">

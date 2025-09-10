@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import ProfileHeader from "../../../components/ProfileHeader";
 import { fetchHardwareStatus, fetchCurrentUser } from "../../../services/authService";
 
@@ -7,36 +8,33 @@ export default function HardwareStatusPage() {
   const [devices, setDevices] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  type User = {
-    name?: string;
-    role?: string;
-    profilePhoto?: string;
-    [key: string]: any;
-  };
-  const [user, setUser] = useState<User | null>(null);
+  const [user, setUser] = useState<any>(null);
+  const router = useRouter();
 
-  // Fetch user profile separately and update if profile changes
   useEffect(() => {
     async function getUser() {
       const userData = await fetchCurrentUser();
-      setUser(
+      const currentUser =
         userData && typeof userData === "object" && "user" in userData && userData.user
-          ? (userData.user as User)
+          ? userData.user
           : userData && typeof userData === "object" && "data" in userData && userData.data
-          ? (userData.data as User)
-          : (userData as User)
-      );
+          ? userData.data
+          : userData;
+      setUser(currentUser);
+
+      // Redirect if not admin
+      if (currentUser?.role !== "ADMIN") {
+        router.replace("/dashboard");
+        return;
+      }
     }
     getUser();
-    // Optionally, you can add a polling or subscribe to profile changes if needed
-  }, []);
+  }, [router]);
 
   useEffect(() => {
     let ws: WebSocket | null = null;
     const apiUrl = process.env.NEXT_PUBLIC_API_URL;
     const wsUrl = `${apiUrl?.replace(/^http/, "ws").replace(/\/$/, "")}/ws/status`;
-
-    console.log("Attempting to connect to WebSocket:", wsUrl);
 
     async function loadData() {
       setLoading(true);
@@ -78,7 +76,10 @@ export default function HardwareStatusPage() {
         console.error("Error parsing WebSocket message:", error);
       }
     };
-   
+
+    return () => {
+      if (ws) ws.close();
+    };
   }, []);
 
   return (

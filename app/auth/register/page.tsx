@@ -13,6 +13,7 @@ export default function Register() {
   const [role, setRole] = useState("ADMIN");
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
+  const [success, setSuccess] = useState(""); // Success message state
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [isClient, setIsClient] = useState(false);
@@ -28,7 +29,7 @@ export default function Register() {
     e.preventDefault();
     setIsLoading(true);
     setError("");
-
+    setSuccess("");
     try {
       if (password !== confirmPassword) {
         throw new Error("Passwords do not match");
@@ -37,8 +38,8 @@ export default function Register() {
         throw new Error("You must accept the Terms and Privacy Policy.");
       }
       await registerUser(username, email, password, role);
-      alert("Registration successful! Please login with your credentials.");
-      router.push("/auth/login");
+      setSuccess("Registration successful! Please login with your credentials.");
+      setTimeout(() => router.push("/auth/login"), 2000);
     } catch (error: any) {
       setError(error.message || "Error occurred during registration.");
     } finally {
@@ -70,6 +71,13 @@ export default function Register() {
                 Get On Board!
               </h2>
             </div>
+            {/* Success message */}
+            {success && (
+              <div className="mb-3 p-2 bg-green-50 border border-green-200 text-green-700 rounded-lg text-xs text-center">
+                {success}
+              </div>
+            )}
+            {/* Error message */}
             {error && (
               <div className="mb-3 p-2 bg-red-50 border border-red-200 text-red-700 rounded-lg text-xs">
                 {error}

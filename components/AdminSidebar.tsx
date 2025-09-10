@@ -1,9 +1,29 @@
 "use client";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
+import { fetchCurrentUser } from "../services/authService";
 
 export default function AdminSidebar({ active }: { active: string }) {
   const [open, setOpen] = useState(true);
+  const [role, setRole] = useState<string | null>(null);
+
+  useEffect(() => {
+    async function getUserRole() {
+      try {
+        const userData = await fetchCurrentUser();
+        const user =
+          userData && typeof userData === "object" && "user" in userData && userData.user
+            ? userData.user
+            : userData && typeof userData === "object" && "data" in userData && userData.data
+            ? userData.data
+            : userData;
+        setRole(user?.role || null);
+      } catch {
+        setRole(null);
+      }
+    }
+    getUserRole();
+  }, []);
 
   return (
     <div
@@ -38,28 +58,32 @@ export default function AdminSidebar({ active }: { active: string }) {
               </div>
             </Link>
           </li>
-          <li>
-            <Link href="/admin/hardware-status">
-              <div
-                className={`flex items-center px-4 py-2 cursor-pointer hover:bg-blue-50 rounded-lg 
-                ${active === "hardware" ? "bg-blue-100 text-blue-900 font-bold" : "text-blue-800"}`}
-              >
-                <span className="mr-3">💻</span>
-                {open && "Hardware Status"}
-              </div>
-            </Link>
-          </li>
-          <li>
-            <Link href="/admin/system-configuration">
-              <div
-                className={`flex items-center px-4 py-2 cursor-pointer hover:bg-blue-50 rounded-lg 
-                ${active === "system" ? "bg-blue-100 text-blue-900 font-bold" : "text-blue-800"}`}
-              >
-                <span className="mr-3">⚙️</span>
-                {open && "System Configuration"}
-              </div>
-            </Link>
-          </li>
+          {role === "ADMIN" && (
+            <>
+              <li>
+                <Link href="/admin/hardware-status">
+                  <div
+                    className={`flex items-center px-4 py-2 cursor-pointer hover:bg-blue-50 rounded-lg 
+                    ${active === "hardware" ? "bg-blue-100 text-blue-900 font-bold" : "text-blue-800"}`}
+                  >
+                    <span className="mr-3">💻</span>
+                    {open && "Hardware Status"}
+                  </div>
+                </Link>
+              </li>
+              <li>
+                <Link href="/admin/system-configuration">
+                  <div
+                    className={`flex items-center px-4 py-2 cursor-pointer hover:bg-blue-50 rounded-lg 
+                    ${active === "system" ? "bg-blue-100 text-blue-900 font-bold" : "text-blue-800"}`}
+                  >
+                    <span className="mr-3">⚙️</span>
+                    {open && "System Configuration"}
+                  </div>
+                </Link>
+              </li>
+            </>
+          )}
         </ul>
       </nav>
 
