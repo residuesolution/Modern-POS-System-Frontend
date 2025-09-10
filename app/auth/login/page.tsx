@@ -29,12 +29,12 @@ export default function Login() {
 
       // ✅ Backend always returns { status, message, token? }
       if (result.status === "success" && result.token) {
+        localStorage.setItem("authToken", result.token); // <-- Save token here
         router.push("/dashboard");
       } else {
         setError(result.message || "Invalid credentials. Please try again.");
       }
     } catch (error: any) {
-      // ✅ Ensure error message is shown cleanly
       setError(
         error?.message ||
           error?.response?.data?.message ||

@@ -12,7 +12,7 @@ interface AuthResponse {
 
 export async function loginUser(username: string, password: string) {
   try {
-    const res = await fetch("http://localhost:8080/api/auth/login", {
+    const res = await fetch(`${API_BASE_URL}${apiConfig.endpoints.auth.LOGIN}`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ name: username, password }),
@@ -20,7 +20,6 @@ export async function loginUser(username: string, password: string) {
 
     const data = await res.json();
 
-    // ✅ Fix: throw error if backend returned "error" or non-200 response
     if (!res.ok || data.status === "error") {
       throw new Error(data.message || "Login failed");
     }
@@ -31,7 +30,6 @@ export async function loginUser(username: string, password: string) {
   }
 }
 
-// --- REGISTER: Prevent duplicate username/email ---
 export const registerUser = async (
   username: string,
   email: string,
@@ -56,7 +54,6 @@ export const registerUser = async (
     }
     return response.data;
   } catch (error: any) {
-    // Show backend error (e.g. "Username already registered", "Email already registered")
     throw new Error(
       error.response?.data?.message || "Registration failed. Please try again."
     );
@@ -138,4 +135,70 @@ export const verifyWebAuthnLogin = async (
     }
   );
   return response.data;
-}; 
+};
+
+// --- Admin APIs for Hardware Status & System Configuration ---
+
+export const fetchHardwareStatus = async () => {
+  const token = localStorage.getItem("authToken");
+  const res = await axios.get(
+    `${API_BASE_URL}${apiConfig.endpoints.admin.HARDWARE_STATUS}`,
+    {
+      headers: { Authorization: `Bearer ${token}` }
+    }
+  );
+  return res.data;
+};
+
+export const fetchSystemConfig = async () => {
+  const token = localStorage.getItem("authToken");
+  const res = await axios.get(
+    `${API_BASE_URL}${apiConfig.endpoints.admin.SYSTEM_CONFIG}`,
+    {
+      headers: { Authorization: `Bearer ${token}` }
+    }
+  );
+  return res.data;
+};
+
+// --- Profile APIs ---
+
+export const fetchCurrentUser = async () => {
+  const token = localStorage.getItem("authToken");
+  const res = await axios.get(
+    `${API_BASE_URL}/api/auth/me`,
+    {
+      headers: { Authorization: `Bearer ${token}` }
+    }
+  );
+  return res.data;
+};
+
+export const updateCurrentUser = async (userData: any) => {
+  const token = localStorage.getItem("authToken");
+  const res = await axios.put(
+    `${API_BASE_URL}/api/auth/me`,
+    userData,
+    {
+      headers: { Authorization: `Bearer ${token}` }
+    }
+  );
+  return res.data;
+};
+
+export const uploadProfilePhoto = async (file: File) => {
+  const token = localStorage.getItem("authToken");
+  const formData = new FormData();
+  formData.append("file", file);
+  const res = await axios.post(
+    `${API_BASE_URL}/api/user/me/photo`,
+    formData,
+    {
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "multipart/form-data"
+      }
+    }
+  );
+  return res.data;
+};

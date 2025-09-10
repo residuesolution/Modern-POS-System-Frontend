@@ -2,9 +2,10 @@ import { createSlice, PayloadAction } from '@reduxjs/toolkit';
 
 interface User {
   id?: number;
-  username: string;
+  username?: string;
   email?: string;
   role?: string;
+  profilePhoto?: string;
 }
 
 interface UserState {
@@ -42,8 +43,13 @@ const userSlice = createSlice({
     setLoading: (state, action: PayloadAction<boolean>) => {
       state.loading = action.payload;
     },
+    updateProfilePhoto: (state, action: PayloadAction<string>) => {
+      if (state.user) {
+        state.user.profilePhoto = action.payload;
+      }
+    },
   },
 });
 
-export const { setUser, setToken, clearUser, setLoading } = userSlice.actions;
+export const { setUser, setToken, clearUser, setLoading, updateProfilePhoto } = userSlice.actions;
 export default userSlice.reducer;
