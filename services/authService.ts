@@ -202,3 +202,18 @@ export const uploadProfilePhoto = async (file: File) => {
   );
   return res.data;
 };
+
+export const fetchHelpContent = async () => {
+  const res = await axios.get(`${API_BASE_URL}/api/help`);
+  return res.data;
+};
+
+export const sendHelpFeedback = async (feedback: string) => {
+  const token = localStorage.getItem("authToken");
+  const res = await axios.post(
+    `${API_BASE_URL}/api/help/feedback`,
+    { feedback },
+    { headers: { Authorization: `Bearer ${token}` } }
+  );
+  return res.data;
+};
