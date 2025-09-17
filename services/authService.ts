@@ -208,12 +208,10 @@ export const fetchHelpContent = async () => {
   return res.data;
 };
 
-export const sendHelpFeedback = async (feedback: string) => {
-  const token = localStorage.getItem("authToken");
+export const sendHelpFeedback = async ({ email, feedback }: { email: string; feedback: string }) => {
   const res = await axios.post(
     `${API_BASE_URL}/api/help/feedback`,
-    { feedback },
-    { headers: { Authorization: `Bearer ${token}` } }
+    { userEmail: email, feedback }
   );
   return res.data;
 };

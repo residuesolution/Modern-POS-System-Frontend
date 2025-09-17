@@ -1,49 +1,36 @@
 "use client";
-import { useEffect, useState } from "react";
-import { fetchCurrentUser, updateCurrentUser } from "../../services/authService";
+
+import Link from "next/link";
 
 export default function SettingsPage() {
-  const [user, setUser] = useState<any>(null);
-  const [name, setName] = useState("");
-  const [email, setEmail] = useState("");
-  const [message, setMessage] = useState("");
-
-  useEffect(() => {
-    fetchCurrentUser().then(data => {
-      setUser(data);
-      setName(data.name || "");
-      setEmail(data.email || "");
-    });
-  }, []);
-
-  const handleSave = async () => {
-    try {
-      await updateCurrentUser({ name, email });
-      setMessage("Settings updated!");
-    } catch {
-      setMessage("Failed to update settings.");
-    }
-  };
+  // You can add more settings links as needed below
+  const settingsLinks = [
+    { label: "Profile", href: "/profile" },
+    { label: "Notifications", href: "/settings/notifications" },
+    { label: "Language & Region", href: "/settings/language" },
+    { label: "Security", href: "/settings/security" },
+   
+    // Add more as needed
+  ];
 
   return (
-    <div className="p-8">
-      <h1 className="text-2xl font-bold mb-4">Settings</h1>
-      {user ? (
-        <div className="space-y-4">
-          <div>
-            <label>Name:</label>
-            <input className="border p-2 ml-2" value={name} onChange={e => setName(e.target.value)} />
-          </div>
-          <div>
-            <label>Email:</label>
-            <input className="border p-2 ml-2" value={email} onChange={e => setEmail(e.target.value)} />
-          </div>
-          <button className="bg-blue-500 text-white px-4 py-2 rounded" onClick={handleSave}>Save</button>
-          {message && <div className="mt-2 text-green-600">{message}</div>}
-        </div>
-      ) : (
-        <p>Loading...</p>
-      )}
+    <div className="h-screen bg-gradient-to-br from-[#4097c0] via-[#91cce7] via-[#0c5875] to-[#023a50] flex items-center justify-center p-4 overflow-hidden">
+      <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-8">
+        <h1 className="text-3xl font-bold text-blue-900 mb-8 text-center">Settings</h1>
+        <ul className="space-y-4">
+          {settingsLinks.map((item) => (
+            <li key={item.href}>
+              <Link
+                href={item.href}
+                className="flex items-center justify-between px-4 py-3 rounded-lg bg-blue-50 hover:bg-blue-100 transition text-blue-800 font-medium text-base shadow-sm"
+              >
+                <span>{item.label}</span>
+                <span className="text-blue-400 text-lg">&rarr;</span>
+              </Link>
+            </li>
+          ))}
+        </ul>
+      </div>
     </div>
   );
 }

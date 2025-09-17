@@ -4,6 +4,8 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { fetchCurrentUser, logoutUser } from "../services/authService";
 
+type UserWithRole = { role?: string | null };
+
 export default function AdminSidebar({ active }: { active: string }) {
   const [open, setOpen] = useState(true);
   const [role, setRole] = useState<string | null>(null);
@@ -19,7 +21,7 @@ export default function AdminSidebar({ active }: { active: string }) {
             : userData && typeof userData === "object" && "data" in userData && userData.data
             ? userData.data
             : userData;
-        setRole(user?.role || null);
+        setRole((user as UserWithRole)?.role || null);
       } catch {
         setRole(null);
       }
@@ -32,7 +34,7 @@ export default function AdminSidebar({ active }: { active: string }) {
     router.push("/auth/login");
   };
 
-  // SVG icons for sidebar (settings icon changed to gear style)
+  // SVG icons for sidebar (updated as requested)
   const icons = {
     dashboard: (
       <svg width="22" height="22" fill="none" viewBox="0 0 24 24"><path d="M3 13h8V3H3v10zm0 8h8v-6H3v6zm10 0h8V11h-8v10zm0-18v6h8V3h-8z" fill="#4097c0"/></svg>
@@ -44,10 +46,21 @@ export default function AdminSidebar({ active }: { active: string }) {
       <svg width="22" height="22" fill="none" viewBox="0 0 24 24"><path d="M20 6H4V4h16v2zm0 2v12H4V8h16zm-2 2H6v8h12v-8z" fill="#4097c0"/></svg>
     ),
     customers: (
-      <svg width="22" height="22" fill="none" viewBox="0 0 24 24"><path d="M12 12c2.7 0 8 1.34 8 4v4H4v-4c0-2.66 5.3-4 8-4zm0-2a4 4 0 100-8 4 4 0 000 8z" fill="#4097c0"/></svg>
+      // Group icon for customers (multiple people)
+      <svg width="22" height="22" fill="none" viewBox="0 0 24 24">
+        <circle cx="7" cy="10" r="3" fill="#4097c0"/>
+        <circle cx="17" cy="10" r="3" fill="#4097c0"/>
+        <ellipse cx="7" cy="17" rx="5" ry="3" fill="#b3e0f7"/>
+        <ellipse cx="17" cy="17" rx="5" ry="3" fill="#b3e0f7"/>
+      </svg>
     ),
     hardware: (
-      <svg width="22" height="22" fill="none" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" stroke="#4097c0" strokeWidth="2"/><rect x="8" y="8" width="8" height="8" rx="2" fill="#4097c0"/></svg>
+      // New hardware status icon (chip style)
+      <svg width="22" height="22" fill="none" viewBox="0 0 24 24">
+        <rect x="5" y="5" width="14" height="14" rx="2" fill="#4097c0"/>
+        <rect x="9" y="9" width="6" height="6" rx="1" fill="#fff"/>
+        <path d="M12 1v4M12 19v4M1 12h4M19 12h4M4.22 4.22l2.83 2.83M16.95 16.95l2.83 2.83M4.22 19.78l2.83-2.83M16.95 7.05l2.83-2.83" stroke="#4097c0" strokeWidth="1.5"/>
+      </svg>
     ),
     system: (
       <svg width="22" height="22" fill="none" viewBox="0 0 24 24"><path d="M12 15.5A3.5 3.5 0 1112 8a3.5 3.5 0 010 7.5zm7.94-2.34l-1.43-1.43a7.007 7.007 0 00.01-2.46l1.43-1.43a.996.996 0 00-.01-1.41l-2.12-2.12a.996.996 0 00-1.41-.01l-1.43 1.43a7.007 7.007 0 00-2.46-.01l-1.43-1.43a.996.996 0 00-1.41.01l-2.12 2.12a.996.996 0 00-.01 1.41l1.43 1.43a7.007 7.007 0 00-.01 2.46l-1.43 1.43a.996.996 0 00.01 1.41l2.12 2.12a.996.996 0 001.41.01l1.43-1.43a7.007 7.007 0 002.46.01l1.43 1.43a.996.996 0 001.41-.01l2.12-2.12a.996.996 0 00.01-1.41z" fill="#4097c0"/></svg>
@@ -56,7 +69,7 @@ export default function AdminSidebar({ active }: { active: string }) {
       <svg width="22" height="22" fill="none" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" stroke="#4097c0" strokeWidth="2"/><path d="M12 17h.01M12 13a2 2 0 10-2-2" stroke="#4097c0" strokeWidth="2" strokeLinecap="round"/></svg>
     ),
     settings: (
-      // Changed to a classic gear icon
+      // Classic gear icon
       <svg width="22" height="22" fill="none" viewBox="0 0 24 24">
         <circle cx="12" cy="12" r="3" stroke="#4097c0" strokeWidth="2"/>
         <path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 01-2.83 2.83l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09a1.65 1.65 0 00-1-1.51 1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06a1.65 1.65 0 00.33-1.82 1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09a1.65 1.65 0 001.51-1 1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06a1.65 1.65 0 001.82.33h.09a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51h.09a1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06a1.65 1.65 0 00-.33 1.82v.09a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z" stroke="#4097c0" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
@@ -76,7 +89,11 @@ export default function AdminSidebar({ active }: { active: string }) {
       {/* Header with logo */}
       <div className="flex items-center justify-between px-4 py-3 border-b">
         <div className="flex items-center space-x-2">
-          <img src="/images/img2.png" alt="SwiftCart Logo" className="w-50 h-25" />
+          {open && (
+          <Link href="/dashboard">
+            <img src="/images/img2.png" alt="SwiftCart Logo" className="w-50 h-25" />
+          </Link>
+          )}
         </div>
         <button
           onClick={() => setOpen(!open)}
@@ -154,35 +171,50 @@ export default function AdminSidebar({ active }: { active: string }) {
                   </div>
                 </Link>
               </li>
-              <li>
-                <Link href="/help">
-                  <div
-                    className={`flex items-center px-4 py-2 cursor-pointer hover:bg-blue-50 rounded-lg text-blue-800`}
-                  >
-                    <span className="mr-3">{icons.help}</span>
-                    {open && "Help"}
-                  </div>
-                </Link>
-              </li>
             </>
           )}
+          <li>
+            <Link href="/help">
+              <div
+                className={`flex items-center px-4 py-2 cursor-pointer hover:bg-blue-50 rounded-lg
+                   ${active === "help" ? "bg-blue-100 text-blue-900 font-bold" : "text-blue-800"}`}
+              >
+                <span className="mr-3">{icons.help}</span>
+                {open && "Help"}
+              </div>
+            </Link>
+          </li>
         </ul>
       </nav>
 
       {/* Footer */}
-      <div className="mt-auto px-4 py-7 border-t text-xs text-gray-500">
-        {open && (
+      <div className="mt-auto px-4 py-7 border-t text-xs flex flex-col gap-2">
+        {open ? (
           <>
             <Link href="/settings">
-              <div className="cursor-pointer hover:text-gray-700 flex items-center mb-6">
+              <div className="cursor-pointer hover:text-blue-900 flex items-center mb-6 text-blue-800">
                 <span className="mr-2">{icons.settings}</span> Settings
               </div>
             </Link>
             <div
-              className="cursor-pointer hover:text-gray-700 flex items-center"
+              className="cursor-pointer hover:text-blue-900 flex items-center text-blue-800"
               onClick={handleLogout}
             >
               <span className="mr-2">{icons.logout}</span> Log Out
+            </div>
+          </>
+        ) : (
+          <>
+            <Link href="/settings">
+              <div className="cursor-pointer hover:text-blue-900 flex items-center justify-center mb-6 text-blue-800">
+                <span>{icons.settings}</span>
+              </div>
+            </Link>
+            <div
+              className="cursor-pointer hover:text-blue-900 flex items-center justify-center text-blue-800"
+              onClick={handleLogout}
+            >
+              <span>{icons.logout}</span>
             </div>
           </>
         )}
