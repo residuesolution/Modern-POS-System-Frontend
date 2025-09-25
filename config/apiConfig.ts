@@ -18,7 +18,9 @@ export const apiConfig = {
     admin: {
       HARDWARE_STATUS: '/api/admin/hardware-status',
       SYSTEM_CONFIG: '/api/admin/system-config',
+      PRODUCT: '/api/admin/product',
     },
+    
   },
   timeout: 10000,
   maxRetries: 3,
