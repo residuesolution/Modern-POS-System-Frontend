@@ -84,7 +84,7 @@ export default function AdminSidebar({ active }: { active: string }) {
     <div
       className={`fixed top-0 left-0 h-screen z-20 transition-all duration-300 
         ${open ? "w-64" : "w-16"} 
-        bg-white shadow-xl flex flex-col`}
+        bg-white shadow-xl flex flex-col rounded-br-xl rounded-tr-xl`}
     >
       {/* Header with logo */}
       <div className="flex items-center justify-between px-4 py-3 border-b">
@@ -120,7 +120,9 @@ export default function AdminSidebar({ active }: { active: string }) {
           <li>
             <Link href="/analysis">
               <div
-                className={`flex items-center px-4 py-2 cursor-pointer hover:bg-blue-50 rounded-lg text-blue-800`}
+                className={`flex items-center px-4 py-2 cursor-pointer hover:bg-blue-50 rounded-lg 
+                ${active === "analysis" ? "bg-blue-100 text-blue-900 font-bold" : "text-blue-800"}`}
+
               >
                 <span className="mr-3">{icons.analysis}</span>
                 {open && "Analysis"}
@@ -130,7 +132,9 @@ export default function AdminSidebar({ active }: { active: string }) {
           <li>
             <Link href="/inventory">
               <div
-                className={`flex items-center px-4 py-2 cursor-pointer hover:bg-blue-50 rounded-lg text-blue-800`}
+                className={`flex items-center px-4 py-2 cursor-pointer hover:bg-blue-50 rounded-lg
+                ${active === "inventory" ? "bg-blue-100 text-blue-900 font-bold" : "text-blue-800"}`}
+
               >
                 <span className="mr-3">{icons.inventory}</span>
                 {open && "Inventory"}
@@ -140,7 +144,9 @@ export default function AdminSidebar({ active }: { active: string }) {
           <li>
             <Link href="/customers">
               <div
-                className={`flex items-center px-4 py-2 cursor-pointer hover:bg-blue-50 rounded-lg text-blue-800`}
+                className={`flex items-center px-4 py-2 cursor-pointer hover:bg-blue-50 rounded-lg 
+               ${active === "customers" ? "bg-blue-100 text-blue-900 font-bold" : "text-blue-800"}`}
+
               >
                 <span className="mr-3">{icons.customers}</span>
                 {open && "Customers"}
@@ -184,40 +190,28 @@ export default function AdminSidebar({ active }: { active: string }) {
               </div>
             </Link>
           </li>
+          <li>
+            <Link href="/settings">
+              <div
+                className={`flex items-center px-4 py-2 cursor-pointer hover:bg-blue-50 rounded-lg
+                   ${active === "settings" ? "bg-blue-100 text-blue-900 font-bold" : "text-blue-800"}`}
+              >
+                <span className="mr-3">{icons.settings}</span>
+                {open && "Settings"}
+              </div>
+            </Link>
+          </li>
         </ul>
       </nav>
 
       {/* Footer */}
       <div className="mt-auto px-4 py-7 border-t text-xs flex flex-col gap-2">
-        {open ? (
-          <>
-            <Link href="/settings">
-              <div className="cursor-pointer hover:text-blue-900 flex items-center mb-6 text-blue-800">
-                <span className="mr-2">{icons.settings}</span> Settings
-              </div>
-            </Link>
-            <div
-              className="cursor-pointer hover:text-blue-900 flex items-center text-blue-800"
-              onClick={handleLogout}
-            >
-              <span className="mr-2">{icons.logout}</span> Log Out
-            </div>
-          </>
-        ) : (
-          <>
-            <Link href="/settings">
-              <div className="cursor-pointer hover:text-blue-900 flex items-center justify-center mb-6 text-blue-800">
-                <span>{icons.settings}</span>
-              </div>
-            </Link>
-            <div
-              className="cursor-pointer hover:text-blue-900 flex items-center justify-center text-blue-800"
-              onClick={handleLogout}
-            >
-              <span>{icons.logout}</span>
-            </div>
-          </>
-        )}
+        <div
+          className="cursor-pointer hover:text-blue-900 flex items-center text-blue-800"
+          onClick={handleLogout}
+        >
+          <span className="mr-2">{icons.logout}</span> {open && "Log Out"}
+        </div>
       </div>
     </div>
   );

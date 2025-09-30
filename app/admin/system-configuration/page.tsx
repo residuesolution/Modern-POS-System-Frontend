@@ -4,11 +4,18 @@ import { useRouter } from "next/navigation";
 import ProfileHeader from "../../../components/ProfileHeader";
 import { fetchSystemConfig, fetchCurrentUser } from "../../../services/authService";
 
+type User = {
+  name: string;
+  role: string;
+  profilePhoto?: string;
+  [key: string]: any;
+};
+
 export default function SystemConfigurationPage() {
   const [config, setConfig] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  const [user, setUser] = useState<any>(null);
+  const [user, setUser] = useState<User | null>(null);
   const router = useRouter();
 
   useEffect(() => {
@@ -24,10 +31,10 @@ export default function SystemConfigurationPage() {
           (userData && typeof userData === "object" && "user" in userData && userData.user) ||
           (userData && typeof userData === "object" && "data" in userData && userData.data) ||
           userData;
-        setUser(currentUser);
+        setUser(currentUser as User);
 
         // Redirect if not admin
-        if (currentUser?.role !== "ADMIN") {
+        if ((currentUser as User)?.role !== "ADMIN") {
           router.replace("/dashboard");
           return;
         }
@@ -64,7 +71,7 @@ export default function SystemConfigurationPage() {
   }, [router]);
 
   return (
-    <div className="relative w-full flex flex-col items-center">
+    <div className="w-full flex flex-col items-center">
       {user && (
         <ProfileHeader
           name={user.name}

@@ -24,7 +24,7 @@ export async function loginUser(username: string, password: string) {
       throw new Error(data.message || "Login failed");
     }
 
-    return data; // {status, message, token}
+    return data;
   } catch (err: any) {
     throw new Error(err.message || "Login failed");
   }
@@ -83,14 +83,12 @@ export const resetPassword = async (token: string, password: string) => {
 };
 
 // --- WebAuthn Biometric Authentication ---
-
 export const getWebAuthnRegistrationOptions = async (email: string) => {
   const response = await axios.post(
     `${API_BASE_URL}${apiConfig.endpoints.auth.WEBAUTHN_REGISTER_OPTIONS}`,
     { email }
   );
-  const data = response.data as { options: any };
-  return data.options;
+  return (response.data as { options: any }).options;
 };
 
 export const verifyWebAuthnRegistration = async (
@@ -112,8 +110,7 @@ export const getWebAuthnLoginOptions = async (email: string) => {
     `${API_BASE_URL}${apiConfig.endpoints.auth.WEBAUTHN_LOGIN_OPTIONS}`,
     { email }
   );
-  const data = response.data as { options: any };
-  return data.options;
+  return (response.data as { options: any }).options;
 };
 
 export const verifyWebAuthnLogin = async (
@@ -138,7 +135,6 @@ export const verifyWebAuthnLogin = async (
 };
 
 // --- Admin APIs for Hardware Status & System Configuration ---
-
 export const fetchHardwareStatus = async () => {
   const token = localStorage.getItem("authToken");
   const res = await axios.get(
@@ -162,7 +158,6 @@ export const fetchSystemConfig = async () => {
 };
 
 // --- Profile APIs ---
-
 export const fetchCurrentUser = async () => {
   const token = localStorage.getItem("authToken");
   const res = await axios.get(
@@ -215,3 +210,41 @@ export const sendHelpFeedback = async ({ email, feedback }: { email: string; fee
   );
   return res.data;
 };
+
+// --- Product Search ---
+export async function searchProducts(query: string) {
+  const res = await axios.get(`${API_BASE_URL}/api/products/search`, { params: { q: query } });
+  return res.data;
+}
+
+// --- Order Search ---
+export async function searchOrders(query: string) {
+  const res = await axios.get(`${API_BASE_URL}/api/orders/search`, { params: { q: query } });
+  return res.data;
+}
+
+// --- Notifications ---
+export async function fetchNotifications() {
+  const token = localStorage.getItem("authToken");
+  if (!token) throw new Error("Not authenticated");
+  const res = await axios.get(
+    `${API_BASE_URL}/api/notifications`,
+    { headers: { Authorization: `Bearer ${token}` } }
+  );
+  return res.data;
+}
+
+export async function fetchProductByBarcode(barcode: string) {
+  const res = await axios.get(`${API_BASE_URL}/api/product/barcode/${barcode}`);
+  return res.data;
+}
+
+export async function createBill(data: { order: any, items: any[] }) {
+  const token = localStorage.getItem("authToken");
+  const res = await axios.post(
+    `${API_BASE_URL}/api/orders/add`,
+    data,
+    { headers: { Authorization: `Bearer ${token}` } }
+  );
+  return res.data;
+}

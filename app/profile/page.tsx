@@ -113,7 +113,7 @@ export default function ProfilePage() {
         className="absolute top-6 right-8 bg-blue-600 text-white px-5 py-2 rounded-lg font-semibold text-xs shadow hover:bg-blue-700 transition"
         title="Back to Dashboard"
       >
-        ← Back
+        Back to Dashboard
       </button>
       <div className="bg-white rounded-2xl shadow-2xl max-w-lg w-full p-8">
         <h2 className="text-xl font-bold mb-6 text-blue-900 text-center">My Profile</h2>
