@@ -263,7 +263,6 @@ export default function CustomersPage() {
                     </div>
 
                     <Button 
-                      variant="outline" 
                       className="ml-4 text-blue-600 border-blue-200 hover:bg-blue-50"
                     >
                       Send offers
@@ -318,7 +317,6 @@ export default function CustomersPage() {
                       </div>
                       <Button 
                         size="sm"
-                        variant="outline" 
                         className="text-blue-600 border-blue-200 hover:bg-blue-50"
                       >
                         Send offers

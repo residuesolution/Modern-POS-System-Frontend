@@ -2,7 +2,7 @@
 import React, { useState, ChangeEvent, FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import ProfileHeader from "@/components/ProfileHeader";
-import AdminSidebar from "@/components/AdminSidebar";
+import Sidebar from "@/components/Sidebar";
 import { fetchCurrentUser } from "@/services/authService";
 
 type User = {
@@ -137,7 +137,7 @@ const AddProductPage = () => {
 
   return (
     <div style={{ display: "flex", minHeight: "100vh"}}>
-      <AdminSidebar active="product-view" />
+      <Sidebar active="product-view" />
       <main style={{ 
         flex: 1, 
         marginLeft: "0px", 

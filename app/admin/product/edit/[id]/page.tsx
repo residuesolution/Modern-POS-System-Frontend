@@ -1,7 +1,7 @@
 "use client";
 import React, { useEffect, useState, ChangeEvent, FormEvent } from "react";
 import { useRouter, useParams } from "next/navigation";
-import AdminSidebar from "@/components/AdminSidebar";
+import Sidebar from "@/components/Sidebar";
 import { fetchCurrentUser } from "@/services/authService";
 
 interface Product {
@@ -152,7 +152,7 @@ const EditProductPage = () => {
 
   return (
     <div className="flex max-h-screen bg-gray-150">
-      <AdminSidebar active="product-view" />
+      <Sidebar active="product-view" />
       
       {/* Main Content */}
       <main className="flex-1 ml">

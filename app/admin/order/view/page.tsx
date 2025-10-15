@@ -1,7 +1,7 @@
 'use client';
 import React, { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import AdminSidebar from '@/components/AdminSidebar';
+import Sidebar from '@/components/Sidebar';
 import Header from '@/components/Header';
 import { fetchCurrentUser } from '@/services/authService';
 
@@ -90,7 +90,7 @@ const OrdersPage = () => {
 
   return (
     <div className="flex max-h-screen bg-gray-150">
-      <AdminSidebar active="orders-view" />
+      <Sidebar active="orders-view" />
       <div className="flex-1 flex flex-col">
         <Header
           user={user || { name: "Admin", role: "ADMIN" }}

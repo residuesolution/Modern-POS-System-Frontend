@@ -2,8 +2,8 @@
 import React, { useEffect, useState } from 'react';
 import { fetchCurrentUser } from '@/services/authService';
 import { useRouter } from 'next/navigation';
-import AdminSidebar from '@/components/AdminSidebar';
-import Header from '@/components/Header';
+import TopNavBar from '@/components/TopNavBar';
+import Sidebar from "@/components/Sidebar"; // 
 
 interface Product {
   id: number;
@@ -39,28 +39,38 @@ const ProductListPage = () => {
   const [searchTerm, setSearchTerm] = useState("");
 
   // Filter products based on search
+  // const filteredProducts = products.filter((product) => {
+  //   const term = searchTerm.toLowerCase().trim();
+
+  //   // 1. Match product name or SKU
+  //   const matchesNameOrSku =
+  //     product.name.toLowerCase().includes(term) ||
+  //     product.sku.toLowerCase().includes(term);
+
+  //   // 2. Match by stock status keywords
+  //   const isLowStock = product.stock <= product.low_stock_alert_threshold && product.stock > 0;
+  //   const isInStock = product.status && product.stock > 0;
+  //   const isOutOfStock = product.stock <= 0 || !product.status;
+
+  //   const matchesStockStatus =
+  //     (term === "low stock" && isLowStock) ||
+  //     (term === "in stock" && isInStock) ||
+  //     (term === "out of stock" && isOutOfStock);
+
+  //   // If no search term → return all products
+  //   if (!term) return true;
+
+  //   return matchesNameOrSku || matchesStockStatus;
+  // });
   const filteredProducts = products.filter((product) => {
     const term = searchTerm.toLowerCase().trim();
-
-    // 1. Match product name or SKU
-    const matchesNameOrSku =
-      product.name.toLowerCase().includes(term) ||
-      product.sku.toLowerCase().includes(term);
-
-    // 2. Match by stock status keywords
-    const isLowStock = product.stock <= product.low_stock_alert_threshold && product.stock > 0;
-    const isInStock = product.status && product.stock > 0;
-    const isOutOfStock = product.stock <= 0 || !product.status;
-
-    const matchesStockStatus =
-      (term === "low stock" && isLowStock) ||
-      (term === "in stock" && isInStock) ||
-      (term === "out of stock" && isOutOfStock);
-
-    // If no search term → return all products
     if (!term) return true;
-
-    return matchesNameOrSku || matchesStockStatus;
+    return (
+      product.name.toLowerCase().includes(term) ||
+      product.sku.toLowerCase().includes(term) ||
+      String(product.category_id).includes(term) ||
+      String(product.id).includes(term)
+    );
   });
 
   useEffect(() => {
@@ -155,13 +165,11 @@ const ProductListPage = () => {
 
   return (
     <div className="flex max-h-screen bg-gray-150">
-      <AdminSidebar active="product-view" />
+      <Sidebar active="product-view" />
       <div className="flex-1 flex flex-col">
-        <Header
+       <TopNavBar
           user={user || { name: "Admin", role: "ADMIN" }}
-          searchTerm={searchTerm}
-          setSearchTerm={setSearchTerm}
-          active="product"
+          onSearch={setSearchTerm} // <-- Pass search handler
         />
         <main className="flex-1 ml">
           {/* Content Area */}

@@ -1,7 +1,7 @@
 "use client";
 import React, { useState } from "react";
 import { useRouter } from "next/navigation";
-import AdminSidebar from "@/components/AdminSidebar";
+import Sidebar from "@/components/Sidebar";
 import ProfileHeader from "@/components/ProfileHeader";
 import { fetchCurrentUser } from "@/services/authService";
 
@@ -144,7 +144,7 @@ const AddSupplierOrderPage = () => {
 
   return (
     <div style={{ display: "flex", minHeight: "100vh" }}>
-      <AdminSidebar active="supplier-order-add" />
+      <Sidebar active="supplier-order-add" />
       <main style={{ flex: 1, padding: "20px" }}>
         <ProfileHeader name={user.name} role={user.role} profilePhoto={user.profilePhoto} />
 
