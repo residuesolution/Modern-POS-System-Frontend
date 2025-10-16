@@ -1,7 +1,9 @@
+// ...existing code...
 import axios from "axios";
 import { apiConfig } from "../config/apiConfig";
 
 const API_BASE_URL = apiConfig.baseUrl;
+console.log("API_BASE_URL:", API_BASE_URL);
 
 interface AuthResponse {
   token: string;
@@ -140,7 +142,7 @@ export const fetchHardwareStatus = async () => {
   const res = await axios.get(
     `${API_BASE_URL}${apiConfig.endpoints.admin.HARDWARE_STATUS}`,
     {
-      headers: { Authorization: `Bearer ${token}` }
+      headers: { Authorization: `Bearer ${token}` },
     }
   );
   return res.data;
@@ -151,7 +153,7 @@ export const fetchSystemConfig = async () => {
   const res = await axios.get(
     `${API_BASE_URL}${apiConfig.endpoints.admin.SYSTEM_CONFIG}`,
     {
-      headers: { Authorization: `Bearer ${token}` }
+      headers: { Authorization: `Bearer ${token}` },
     }
   );
   return res.data;
@@ -160,24 +162,17 @@ export const fetchSystemConfig = async () => {
 // --- Profile APIs ---
 export const fetchCurrentUser = async () => {
   const token = localStorage.getItem("authToken");
-  const res = await axios.get(
-    `${API_BASE_URL}/api/auth/me`,
-    {
-      headers: { Authorization: `Bearer ${token}` }
-    }
-  );
+  const res = await axios.get(`${API_BASE_URL}/api/auth/me`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
   return res.data;
 };
 
 export const updateCurrentUser = async (userData: any) => {
   const token = localStorage.getItem("authToken");
-  const res = await axios.put(
-    `${API_BASE_URL}/api/auth/me`,
-    userData,
-    {
-      headers: { Authorization: `Bearer ${token}` }
-    }
-  );
+  const res = await axios.put(`${API_BASE_URL}/api/auth/me`, userData, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
   return res.data;
 };
 
@@ -185,16 +180,12 @@ export const uploadProfilePhoto = async (file: File) => {
   const token = localStorage.getItem("authToken");
   const formData = new FormData();
   formData.append("file", file);
-  const res = await axios.post(
-    `${API_BASE_URL}/api/user/me/photo`,
-    formData,
-    {
-      headers: {
-        Authorization: `Bearer ${token}`,
-        "Content-Type": "multipart/form-data"
-      }
-    }
-  );
+  const res = await axios.post(`${API_BASE_URL}/api/user/me/photo`, formData, {
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "multipart/form-data",
+    },
+  });
   return res.data;
 };
 
@@ -203,23 +194,33 @@ export const fetchHelpContent = async () => {
   return res.data;
 };
 
-export const sendHelpFeedback = async ({ email, feedback }: { email: string; feedback: string }) => {
-  const res = await axios.post(
-    `${API_BASE_URL}/api/help/feedback`,
-    { userEmail: email, feedback }
-  );
+export const sendHelpFeedback = async ({
+  email,
+  feedback,
+}: {
+  email: string;
+  feedback: string;
+}) => {
+  const res = await axios.post(`${API_BASE_URL}/api/help/feedback`, {
+    userEmail: email,
+    feedback,
+  });
   return res.data;
 };
 
 // --- Product Search ---
 export async function searchProducts(query: string) {
-  const res = await axios.get(`${API_BASE_URL}/api/products/search`, { params: { q: query } });
+  const res = await axios.get(`${API_BASE_URL}/api/products/search`, {
+    params: { q: query },
+  });
   return res.data;
 }
 
 // --- Order Search ---
 export async function searchOrders(query: string) {
-  const res = await axios.get(`${API_BASE_URL}/api/orders/search`, { params: { q: query } });
+  const res = await axios.get(`${API_BASE_URL}/api/orders/search`, {
+    params: { q: query },
+  });
   return res.data;
 }
 
@@ -227,10 +228,9 @@ export async function searchOrders(query: string) {
 export async function fetchNotifications() {
   const token = localStorage.getItem("authToken");
   if (!token) throw new Error("Not authenticated");
-  const res = await axios.get(
-    `${API_BASE_URL}/api/notifications`,
-    { headers: { Authorization: `Bearer ${token}` } }
-  );
+  const res = await axios.get(`${API_BASE_URL}/api/notifications`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
   return res.data;
 }
 
@@ -239,12 +239,116 @@ export async function fetchProductByBarcode(barcode: string) {
   return res.data;
 }
 
-export async function createBill(data: { order: any, items: any[] }) {
+export async function createBill(data: { order: any; items: any[] }) {
   const token = localStorage.getItem("authToken");
-  const res = await axios.post(
-    `${API_BASE_URL}/api/orders/add`,
-    data,
-    { headers: { Authorization: `Bearer ${token}` } }
-  );
+  const res = await axios.post(`${API_BASE_URL}/api/orders/add`, data, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
   return res.data;
+}
+
+// helper to compose headers
+const buildHeaders = (extra?: Record<string, string>) => {
+  const token = localStorage.getItem("authToken");
+  return {
+    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    ...(extra || {}),
+  };
+};
+
+// ...existing code...
+export async function registerFace(email: string, embedding: number[]) {
+  try {
+    const res = await axios.post(
+      `${API_BASE_URL}${apiConfig.endpoints.auth.FACEID_REGISTER}`,
+      { email, embedding },
+      {
+        headers: buildHeaders({ "Content-Type": "application/json" }),
+      }
+    );
+    return res.data;
+  } catch (err: any) {
+    throw new Error(
+      err.response?.data?.message || err.message || "Face registration failed"
+    );
+  }
+}
+
+export async function loginFace(email: string, embedding: number[]) {
+  try {
+    const res = await axios.post<AuthResponse>(
+      `${API_BASE_URL}${apiConfig.endpoints.auth.FACEID_LOGIN}`,
+      { email, embedding },
+      {
+        headers: buildHeaders({ "Content-Type": "application/json" }),
+      }
+    );
+    // if backend returns token, persist it
+    if (res.data?.token) {
+      localStorage.setItem("authToken", res.data.token);
+      if (res.data.id) localStorage.setItem("userId", String(res.data.id));
+    }
+    return res.data;
+  } catch (err: any) {
+    if (err.response?.status === 401) {
+      throw new Error("Unauthorized: face login rejected by server.");
+    }
+    throw new Error(err.response?.data?.message || err.message || "Face login failed");
+  }
+}
+
+export async function getFace(email: string) {
+  try {
+    const res = await axios.get(
+      `${API_BASE_URL}${apiConfig.endpoints.auth.FACEID_GET}${encodeURIComponent(
+        email
+      )}`,
+      {
+        headers: buildHeaders(),
+      }
+    );
+    return res.data;
+  } catch (err: any) {
+    if (err.response?.status === 401) {
+      throw new Error("Unauthorized: missing or invalid token.");
+    }
+    throw new Error(err.response?.data?.message || err.message || "Failed to get face data");
+  }
+}
+
+export async function updateFace(email: string, embedding: number[]) {
+  try {
+    const res = await axios.put(
+      `${API_BASE_URL}${apiConfig.endpoints.auth.FACEID_UPDATE}`,
+      { email, embedding },
+      {
+        headers: buildHeaders({ "Content-Type": "application/json" }),
+      }
+    );
+    return res.data;
+  } catch (err: any) {
+    if (err.response?.status === 401) {
+      throw new Error("Unauthorized: missing or invalid token.");
+    }
+    throw new Error(err.response?.data?.message || err.message || "Failed to update face data");
+  }
+}
+
+export async function deleteFace(email: string) {
+  try {
+    const res = await axios.delete(
+      `${API_BASE_URL}${apiConfig.endpoints.auth.FACEID_DELETE}${encodeURIComponent(
+        email
+      )}`,
+      {
+        headers: buildHeaders(),
+      }
+    );
+    return res.data;
+  } catch (err: any) {
+    if (err.response?.status === 401) {
+      throw new Error("Unauthorized: missing or invalid token.");
+    }
+    throw new Error(err.response?.data?.message || err.message || "Failed to delete face data");
+  }
 }

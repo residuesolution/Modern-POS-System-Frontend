@@ -105,7 +105,7 @@ export default function FingerprintLogin() {
                 onClick={handleLogin}
                 disabled={isLoading || !email}
               >
-                {isLoading ? "Authenticating..." : "Login with Fingerprint"}
+                {isLoading ? "Authenticating..." : "Login Fingerprint"}
               </button>
             </form>
             {message && (
