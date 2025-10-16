@@ -18,9 +18,9 @@ export const apiConfig = {
        // FaceID endpoints
           FACEID_REGISTER: '/api/auth/faceid/register',
           FACEID_LOGIN: '/api/auth/faceid/login',
-          FACEID_GET: '/api/auth/faceid/', // + email
+          FACEID_GET: '/api/auth/faceid/', 
           FACEID_UPDATE: '/api/auth/faceid/update',
-          FACEID_DELETE: '/api/auth/faceid/' // + email
+          FACEID_DELETE: '/api/auth/faceid/' 
     },
     admin: {
       HARDWARE_STATUS: '/api/admin/hardware-status',

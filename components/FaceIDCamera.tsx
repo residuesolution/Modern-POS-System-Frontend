@@ -1,4 +1,3 @@
-// ...existing code...
 "use client";
 import React, { useRef, useEffect, useState } from "react";
 import * as tf from "@tensorflow/tfjs";
@@ -118,4 +117,3 @@ export default function FaceIDCamera({
     </div>
   );
 }
-// ...existing code...

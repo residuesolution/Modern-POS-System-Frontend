@@ -256,7 +256,6 @@ const buildHeaders = (extra?: Record<string, string>) => {
   };
 };
 
-// ...existing code...
 export async function registerFace(email: string, embedding: number[]) {
   try {
     const res = await axios.post(

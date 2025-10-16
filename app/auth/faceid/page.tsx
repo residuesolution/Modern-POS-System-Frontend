@@ -1,4 +1,3 @@
-// ...existing code...
 "use client";
 import { useState, useEffect } from "react";
 import FaceIDCamera from "../../../components/FaceIDCamera";
@@ -225,4 +224,3 @@ export default function FaceIDLogin() {
     </div>
   );
 }
-// ...existing code...

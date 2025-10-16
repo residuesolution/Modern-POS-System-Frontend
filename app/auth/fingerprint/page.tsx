@@ -45,7 +45,6 @@ export default function FingerprintLogin() {
       const assertion = await startAuthentication(options);
       const result = await verifyWebAuthnLogin(email, assertion) as { message?: string; token?: string };
       setMessage(result.message || "Login successful!");
-      // Store JWT in cookie if returned
       if (result.token) {
         document.cookie = `JWT=${result.token}; path=/; max-age=3600;`;
         localStorage.setItem("authToken", result.token);
@@ -118,4 +117,4 @@ export default function FingerprintLogin() {
       </div>
     </div>
   );
-}
+} 
