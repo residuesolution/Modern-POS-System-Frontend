@@ -1,6 +1,7 @@
 // ...existing code...
 import axios from "axios";
 import { apiConfig } from "../config/apiConfig";
+import client from "../utils/appClient";
 
 const API_BASE_URL = apiConfig.baseUrl;
 console.log("API_BASE_URL:", API_BASE_URL);
@@ -208,42 +209,34 @@ export const sendHelpFeedback = async ({
   return res.data;
 };
 
-// --- Product Search ---
+// Product search — backend path is /api/product/search
 export async function searchProducts(query: string) {
-  const res = await axios.get(`${API_BASE_URL}/api/products/search`, {
-    params: { q: query },
-  });
+  const res = await client.get("/api/product/search", { params: { q: query } });
   return res.data;
 }
 
-// --- Order Search ---
+// Order search
 export async function searchOrders(query: string) {
-  const res = await axios.get(`${API_BASE_URL}/api/orders/search`, {
-    params: { q: query },
-  });
+  const res = await client.get("/api/orders/search", { params: { q: query } });
   return res.data;
 }
 
-// --- Notifications ---
+// Fetch notifications
 export async function fetchNotifications() {
-  const token = localStorage.getItem("authToken");
-  if (!token) throw new Error("Not authenticated");
-  const res = await axios.get(`${API_BASE_URL}/api/notifications`, {
-    headers: { Authorization: `Bearer ${token}` },
-  });
+  const res = await client.get("/api/notifications");
   return res.data;
 }
 
+// Product by barcode
 export async function fetchProductByBarcode(barcode: string) {
-  const res = await axios.get(`${API_BASE_URL}/api/product/barcode/${barcode}`);
+  const res = await client.get(`/api/product/barcode/${encodeURIComponent(barcode)}`);
   return res.data;
 }
 
+
+// Create bill (orders/add)
 export async function createBill(data: { order: any; items: any[] }) {
-  const token = localStorage.getItem("authToken");
-  const res = await axios.post(`${API_BASE_URL}/api/orders/add`, data, {
-    headers: { Authorization: `Bearer ${token}` },
-  });
+  const res = await client.post("/api/orders/add", data);
   return res.data;
 }
 
