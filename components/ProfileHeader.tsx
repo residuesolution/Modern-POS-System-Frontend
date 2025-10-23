@@ -18,7 +18,7 @@ export default function ProfileHeader({ name, role, profilePhoto }: ProfileHeade
 
   return (
     <div
-      className="fixed top-4 right-6 flex items-center space-x-3 bg-white rounded-full px-3 py-1 shadow-md z-30 cursor-pointer hover:bg-blue-50 transition"
+      className="fixed top-3.5 right-10 flex items-center space-x-3 bg-white rounded-full px-3 py-1 shadow-lg z-30 cursor-pointer border border-blue-700 focus:ring-5 focus:ring-blue-700 transition hover:scale-105 transform"
       onClick={handleProfileClick}
       title="View Profile"
     >

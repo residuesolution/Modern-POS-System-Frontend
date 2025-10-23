@@ -1,225 +1,345 @@
 "use client";
-import { useState } from "react";
-import { createBill, fetchProductByBarcode } from "../services/authService";
+import { useState, useEffect } from "react";
+import { createBill } from "../services/authService";
+import { 
+  getRecommendations, 
+  getPromos, 
+  getFraudScore,
+  createRecommendRequest,
+  createPromoRequest,
+  createFraudRequest,
+  type CartItem,
+  type RecommendationItem,
+  type PromoDecision,
+  type FraudResponse
+} from "../services/aiService";
 
 export default function CreateBill({ onBillCreated }: { onBillCreated?: (bill: any) => void }) {
   const [items, setItems] = useState<any[]>([]);
   const [barcode, setBarcode] = useState("");
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState("");
-  const [paymentMethod, setPaymentMethod] = useState<"CASH" | "CARD" | "LOYALTY" | "WALLET">("CASH");
+  
+  // AI-related state
+  const [recommendations, setRecommendations] = useState<RecommendationItem[]>([]);
+  const [promoDecisions, setPromoDecisions] = useState<PromoDecision[]>([]);
+  const [fraudScore, setFraudScore] = useState<FraudResponse | null>(null);
+  const [showRecommendations, setShowRecommendations] = useState(false);
+  const [cartTotal, setCartTotal] = useState(0);
+  const [selectedPromos, setSelectedPromos] = useState<string[]>([]);
 
-  const handleAddItem = async () => {
-    if (!barcode?.trim()) return;
-    setLoading(true);
-    setMessage("");
-
-    try {
-      const product: any = await fetchProductByBarcode(barcode.trim());
-      if (!product || !product.id) {
-        setMessage("Product not found");
-        setBarcode("");
-        return;
-      }
-
-      const unitPrice = Number(product.price ?? product.unit_price ?? 0);
-      const newItem = {
-        product_id: product.id,
-        barcode: barcode.trim(),
-        productName: product.name ?? product.title ?? null,
+  const handleAddItem = () => {
+    if (barcode) {
+      const newItem = { 
+        barcode, 
+        productId: barcode, // Using barcode as productId for simplicity
         quantity: 1,
-        unit_price: unitPrice,
-        total_price: unitPrice * 1,
+        price: Math.random() * 50 + 10 // Mock price
       };
-
-      setItems(prev => [...prev, newItem]);
+      setItems([...items, newItem]);
       setBarcode("");
-    } catch (err) {
-      console.error("fetch product error", err);
-      setMessage("Failed to fetch product");
-    } finally {
-      setLoading(false);
+      setCartTotal(prev => prev + newItem.price);
     }
   };
 
-  const handleQtyChange = (index: number, qty: number) => {
-    setItems(prev => {
-      const copy = [...prev];
-      const it = copy[index];
-      it.quantity = Math.max(0, Math.floor(qty || 0));
-      it.total_price = Number(it.unit_price || 0) * Number(it.quantity || 0);
-      return copy;
-    });
-  };
+  // Load AI recommendations when cart changes
+  useEffect(() => {
+    if (items.length > 0) {
+      loadRecommendations();
+      loadPromoDecisions();
+    } else {
+      setRecommendations([]);
+      setPromoDecisions([]);
+    }
+  }, [items, cartTotal]);
 
-  const handleRemove = (index: number) => {
-    setItems(prev => prev.filter((_, i) => i !== index));
-  };
-
-  const openPdfBlob = (blob: Blob) => {
-    const url = URL.createObjectURL(blob);
-    window.open(url, "_blank");
-    setTimeout(() => URL.revokeObjectURL(url), 60_000);
-  };
-
-  const openHtml = (html: string) => {
-    const w = window.open("", "_blank");
-    if (w) {
-      w.document.write(html);
-      w.document.close();
+  const loadRecommendations = async () => {
+    try {
+      const cartItems: CartItem[] = items.map(item => ({
+        productId: item.productId || item.barcode,
+        quantity: item.quantity || 1
+      }));
+      
+      const request = createRecommendRequest(cartItems, "user123", "store001", 5);
+      const response = await getRecommendations(request);
+      setRecommendations(response.recommendations);
+    } catch (error) {
+      console.error("Failed to load recommendations:", error);
     }
   };
 
-  // Create order on backend, save created order + items to sessionStorage and redirect to payment page
+  const loadPromoDecisions = async () => {
+    try {
+      const candidatePromos = [
+        { promoId: "SAVE10" },
+        { promoId: "BULK20" },
+        { promoId: "NEWUSER" }
+      ];
+      
+      const request = createPromoRequest(cartTotal, candidatePromos, "user123", "store001");
+      const response = await getPromos(request);
+      setPromoDecisions(response.promos);
+    } catch (error) {
+      console.error("Failed to load promo decisions:", error);
+    }
+  };
+
+  const addRecommendation = (recommendation: RecommendationItem) => {
+    const newItem = {
+      barcode: recommendation.productId,
+      productId: recommendation.productId,
+      quantity: 1,
+      price: Math.random() * 50 + 10 // Mock price
+    };
+    setItems([...items, newItem]);
+    setCartTotal(prev => prev + newItem.price);
+  };
+
+  const togglePromo = (promoId: string) => {
+    setSelectedPromos(prev => 
+      prev.includes(promoId) 
+        ? prev.filter(id => id !== promoId)
+        : [...prev, promoId]
+    );
+  };
+/*
   const handleCreateBill = async () => {
-    if (items.length === 0) {
-      setMessage("Add at least one item.");
-      return;
-    }
     setLoading(true);
     setMessage("");
     try {
-      const total = items.reduce((s, it) => s + Number(it.total_price ?? 0), 0);
-      const order = {
-        customer_id: Number(1),
-        user_id: Number(localStorage.getItem("userId")) || 1,
-        payment_method: paymentMethod,
-        total_amount: Number(total) || 0,
-        discount_amount: 0,
-        loyalty_points_used: 0,
-        status: "completed"
-      };
-
-      const payload = {
-        order,
-        items: items.map(it => ({
-          product_id: Number(it.product_id),
-          barcode: it.barcode,
-          product_name: it.productName,
-          quantity: Number(it.quantity || 0),
-          unit_price: Number(it.unit_price || 0),
-          total_price: Number(it.total_price || 0),
-        })),
-      };
-
-      // create order (backend may return json or pdf/blob); keep current behavior
-      const res = await createBill(payload);
-
-      // Notify other tabs/pages
-      try { localStorage.setItem("order-created", String(Date.now())); } catch (e) { /* ignore */ }
-
-      // handle PDF / HTML responses if backend returned them
-      if (res && res.pdf_blob instanceof Blob) {
-        openPdfBlob(res.pdf_blob);
-      } else if (res && res.html) {
-        openHtml(res.html);
-      } else if (res && res.pdf_url) {
-        window.open(res.pdf_url, "_blank");
-      }
-
+      const bill = await createBill(items);
       setMessage("Bill created!");
       setItems([]);
-
-      // Save created order / items / meta to sessionStorage and redirect to payment page.
-      try {
-        // Normalize created order id and order object from different backends
-        const createdOrder = res?.data ?? res ?? {};
-        sessionStorage.setItem("checkout_order", JSON.stringify(createdOrder));
-        sessionStorage.setItem("checkout_items", JSON.stringify(payload.items));
-        sessionStorage.setItem("checkout_meta", JSON.stringify({ paymentMethod, total }));
-      } catch (e) {
-        console.error("sessionStorage save failed", e);
-      }
-
-      // redirect to payment page for selected method
-      if (typeof window !== "undefined") {
-        window.location.href = `/payments/${paymentMethod.toLowerCase()}`;
-      }
-
-      onBillCreated?.(res);
-    } catch (err) {
-      console.error("create bill error:", err);
+      onBillCreated?.(bill);
+    } catch {
       setMessage("Failed to create bill.");
     } finally {
       setLoading(false);
     }
   };
-  
+*/
+const handleCreateBill = async () => {
+  setLoading(true);
+  setMessage("");
+  try {
+    // Check fraud score before creating bill
+    const fraudRequest = createFraudRequest({
+      orderId: `ORDER_${Date.now()}`,
+      amount: cartTotal,
+      currency: "USD",
+      paymentMethod: "CASH",
+      userId: "user123",
+      items: items.map(item => ({
+        productId: item.productId || item.barcode,
+        quantity: item.quantity || 1,
+        unitPrice: item.price || 0
+      })),
+      billingAddress: { country: "US", zip: "12345" },
+      shippingAddress: { country: "US", zip: "12345" }
+    }, "store001");
+
+    const fraudResponse = await getFraudScore(fraudRequest);
+    setFraudScore(fraudResponse);
+
+    // If high fraud risk, show warning but allow override
+    if (fraudResponse.label === "high") {
+      const proceed = window.confirm(
+        `High fraud risk detected (${fraudResponse.riskScore.toFixed(2)}). ` +
+        `Risk factors: ${fraudResponse.factors.join(", ")}. ` +
+        "Do you want to proceed anyway?"
+      );
+      if (!proceed) {
+        setMessage("Transaction cancelled due to fraud risk.");
+        setLoading(false);
+        return;
+      }
+    }
+
+    // Create the order
+    const order = {
+      customer_id: 1,
+      user_id: 1,
+      payment_method: "CASH",
+      total_amount: cartTotal,
+      discount_amount: 0,
+      loyalty_points_used: 0,
+      status: "completed",
+      fraud_score: fraudResponse.riskScore,
+      fraud_label: fraudResponse.label,
+      selected_promos: selectedPromos
+    };
+    
+    const bill = await createBill({ order, items });
+    setMessage("Bill created successfully!");
+    setItems([]);
+    setCartTotal(0);
+    setSelectedPromos([]);
+    setFraudScore(null);
+    onBillCreated?.(bill);
+  } catch (error: any) {
+    setMessage(`Failed to create bill: ${error.message}`);
+  } finally {
+    setLoading(false);
+  }
+};
   return (
-    <div className="p-4 bg-white rounded-xl shadow-lg max-w-md w-full">
-      <h2 className="font-bold text-lg mb-2 flex items-center gap-2">
+    <div className="p-4 bg-white rounded-xl shadow-lg max-w-4xl w-full">
+      <h2 className="font-bold text-lg mb-4 flex items-center gap-2">
         <span className="text-blue-700">
           <svg width="22" height="22" fill="none" viewBox="0 0 24 24">
             <rect x="4" y="3" width="16" height="18" rx="2" stroke="currentColor" strokeWidth="2"/>
             <path d="M12 8v8M8 12h8" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
           </svg>
         </span>
-        Create Bill
+        Create Bill with AI Features
       </h2>
+      
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Left Column - Cart and Input */}
+        <div className="space-y-4">
+          <div className="flex gap-2">
+            <input
+              type="text"
+              value={barcode}
+              onChange={e => setBarcode(e.target.value)}
+              placeholder="Enter or scan barcode"
+              className="border px-3 py-2 rounded-lg flex-1"
+            />
+            <button onClick={handleAddItem} className="bg-blue-600 text-white px-3 py-2 rounded-lg">
+              Add
+            </button>
+          </div>
 
-      <div className="flex gap-2 mb-2">
-        <input
-          type="text"
-          value={barcode}
-          onChange={e => setBarcode(e.target.value)}
-          placeholder="Enter or scan barcode"
-          className="border px-3 py-2 rounded-lg flex-1"
-        />
-        <button onClick={handleAddItem} className="bg-blue-600 text-white px-3 py-2 rounded-lg" disabled={loading}>
-          {loading ? "Adding..." : "Add"}
-        </button>
-      </div>
-
-      <div className="mb-2">
-        <label className="text-sm block mb-1">Payment method</label>
-        <select
-          value={paymentMethod}
-          onChange={e => setPaymentMethod(e.target.value as any)}
-          className="border px-3 py-2 rounded-lg w-full"
-        >
-          <option value="CASH">Cash</option>
-          <option value="CARD">Card</option>
-          <option value="LOYALTY">Loyalty</option>
-          <option value="WALLET">Digital Wallet</option>
-        </select>
-      </div>
-
-      <ul className="mb-2 divide-y">
-        {items.map((item, idx) => (
-          <li key={idx} className="text-sm py-2 flex items-center justify-between gap-2">
-            <div className="flex-1 min-w-0">
-              <div className="font-medium truncate">{item.productName ?? item.barcode ?? `Item ${idx+1}`}</div>
-              <div className="text-xs text-gray-500">Unit: Rs. {Number(item.unit_price || 0).toFixed(2)}</div>
+          {/* Cart Items */}
+          <div className="bg-gray-50 p-3 rounded-lg">
+            <h3 className="font-semibold mb-2">Cart Items ({items.length})</h3>
+            <div className="space-y-2">
+              {items.map((item, idx) => (
+                <div key={idx} className="flex justify-between items-center text-sm bg-white p-2 rounded">
+                  <span>{item.barcode}</span>
+                  <span className="font-medium">${(item.price || 0).toFixed(2)}</span>
+                </div>
+              ))}
             </div>
-
-            <div className="flex items-center gap-2">
-              <input
-                type="number"
-                min={0}
-                value={item.quantity ?? 1}
-                onChange={(e) => handleQtyChange(idx, Number(e.target.value))}
-                className="w-16 border rounded px-2 py-1 text-sm"
-              />
-              <div className="text-sm">Rs. {(Number(item.total_price) || 0).toFixed(2)}</div>
-              <button onClick={() => handleRemove(idx)} className="text-red-500 text-xs ml-2">Remove</button>
+            <div className="mt-3 pt-2 border-t border-gray-200">
+              <div className="flex justify-between font-semibold">
+                <span>Total:</span>
+                <span>${cartTotal.toFixed(2)}</span>
+              </div>
             </div>
-          </li>
-        ))}
-      </ul>
+          </div>
 
-      <div className="mb-2 text-right font-semibold">
-        Total: Rs. {items.reduce((s, it) => s + Number(it.total_price || 0), 0).toFixed(2)}
+          {/* Promo Codes */}
+          {promoDecisions.length > 0 && (
+            <div className="bg-yellow-50 p-3 rounded-lg">
+              <h3 className="font-semibold mb-2">Available Promotions</h3>
+              <div className="space-y-2">
+                {promoDecisions.map((promo) => (
+                  <label key={promo.promoId} className="flex items-center space-x-2 text-sm">
+                    <input
+                      type="checkbox"
+                      checked={selectedPromos.includes(promo.promoId)}
+                      onChange={() => togglePromo(promo.promoId)}
+                      className="rounded"
+                    />
+                    <span className={promo.recommended ? "text-green-600 font-medium" : "text-gray-600"}>
+                      {promo.promoId} {promo.recommended ? "✓ Recommended" : ""}
+                    </span>
+                    <span className="text-xs text-gray-500">({promo.rationale})</span>
+                  </label>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Fraud Detection Status */}
+          {fraudScore && (
+            <div className={`p-3 rounded-lg ${
+              fraudScore.label === "high" ? "bg-red-50 border border-red-200" :
+              fraudScore.label === "medium" ? "bg-yellow-50 border border-yellow-200" :
+              "bg-green-50 border border-green-200"
+            }`}>
+              <h3 className="font-semibold mb-1">Fraud Risk Assessment</h3>
+              <p className="text-sm">
+                Risk Level: <span className={`font-medium ${
+                  fraudScore.label === "high" ? "text-red-600" :
+                  fraudScore.label === "medium" ? "text-yellow-600" :
+                  "text-green-600"
+                }`}>{fraudScore.label.toUpperCase()}</span>
+              </p>
+              <p className="text-xs text-gray-600">
+                Score: {fraudScore.riskScore.toFixed(3)} | 
+                Factors: {fraudScore.factors.join(", ")}
+              </p>
+            </div>
+          )}
+
+          <button
+            onClick={handleCreateBill}
+            className="bg-green-600 text-white px-4 py-2 rounded-lg w-full"
+            disabled={loading || items.length === 0}
+          >
+            {loading ? "Creating..." : "Create Bill"}
+          </button>
+          {message && (
+            <div className={`text-sm p-2 rounded ${
+              message.includes("successfully") ? "text-green-700 bg-green-50" : 
+              message.includes("cancelled") ? "text-red-700 bg-red-50" :
+              "text-blue-700 bg-blue-50"
+            }`}>
+              {message}
+            </div>
+          )}
+        </div>
+
+        {/* Right Column - AI Recommendations */}
+        <div className="space-y-4">
+          <div className="flex items-center justify-between">
+            <h3 className="font-semibold">AI Recommendations</h3>
+            <button
+              onClick={() => setShowRecommendations(!showRecommendations)}
+              className="text-blue-600 text-sm hover:underline"
+            >
+              {showRecommendations ? "Hide" : "Show"} Recommendations
+            </button>
+          </div>
+
+          {showRecommendations && recommendations.length > 0 && (
+            <div className="bg-blue-50 p-3 rounded-lg">
+              <p className="text-sm text-gray-600 mb-3">
+                Based on your cart, we recommend these products:
+              </p>
+              <div className="space-y-2">
+                {recommendations.map((rec, idx) => (
+                  <div key={idx} className="flex justify-between items-center bg-white p-2 rounded text-sm">
+                    <div>
+                      <span className="font-medium">{rec.productId}</span>
+                      <span className="text-gray-500 ml-2">({rec.reason})</span>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <span className="text-xs text-gray-500">
+                        Score: {rec.score.toFixed(2)}
+                      </span>
+                      <button
+                        onClick={() => addRecommendation(rec)}
+                        className="bg-blue-600 text-white px-2 py-1 rounded text-xs hover:bg-blue-700"
+                      >
+                        Add
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {showRecommendations && recommendations.length === 0 && (
+            <div className="bg-gray-50 p-3 rounded-lg text-center text-gray-500 text-sm">
+              Add items to your cart to see AI recommendations
+            </div>
+          )}
+        </div>
       </div>
-
-      <button
-        onClick={handleCreateBill}
-        className="bg-green-600 text-white px-4 py-2 rounded-lg w-full"
-        disabled={loading || items.length === 0}
-      >
-        {loading ? "Creating..." : "Create Bill"}
-      </button>
-
-      {message && <div className="mt-2 text-xs text-blue-700">{message}</div>}
     </div>
   );
 }

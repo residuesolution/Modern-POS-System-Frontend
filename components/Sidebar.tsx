@@ -39,7 +39,9 @@ export default function AdminSidebar({ active }: { active: string }) {
     dashboard: (
       <svg width="22" height="22" fill="none" viewBox="0 0 24 24"><path d="M3 13h8V3H3v10zm0 8h8v-6H3v6zm10 0h8V11h-8v10zm0-18v6h8V3h-8z" fill="#4097c0"/></svg>
     ),
-    
+    analysis: (
+      <svg width="22" height="22" fill="none" viewBox="0 0 24 24"><path d="M3 17h2v-7H3v7zm4 0h2v-4H7v4zm4 0h2V7h-2v10zm4 0h2v-2h-2v2z" fill="#4097c0"/></svg>
+    ),
     inventory: (
       <svg width="22" height="22" fill="none" viewBox="0 0 24 24"><path d="M20 6H4V4h16v2zm0 2v12H4V8h16zm-2 2H6v8h12v-8z" fill="#4097c0"/></svg>
     ),
@@ -62,6 +64,12 @@ export default function AdminSidebar({ active }: { active: string }) {
     ),
     system: (
       <svg width="22" height="22" fill="none" viewBox="0 0 24 24"><path d="M12 15.5A3.5 3.5 0 1112 8a3.5 3.5 0 010 7.5zm7.94-2.34l-1.43-1.43a7.007 7.007 0 00.01-2.46l1.43-1.43a.996.996 0 00-.01-1.41l-2.12-2.12a.996.996 0 00-1.41-.01l-1.43 1.43a7.007 7.007 0 00-2.46-.01l-1.43-1.43a.996.996 0 00-1.41.01l-2.12 2.12a.996.996 0 00-.01 1.41l1.43 1.43a7.007 7.007 0 00-.01 2.46l-1.43 1.43a.996.996 0 00.01 1.41l2.12 2.12a.996.996 0 001.41.01l1.43-1.43a7.007 7.007 0 002.46.01l1.43 1.43a.996.996 0 001.41-.01l2.12-2.12a.996.996 0 00.01-1.41z" fill="#4097c0"/></svg>
+    ),
+    ai: (
+      <svg width="22" height="22" fill="none" viewBox="0 0 24 24">
+        <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" stroke="#4097c0" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+        <circle cx="12" cy="12" r="3" fill="#4097c0"/>
+      </svg>
     ),
     help: (
       <svg width="22" height="22" fill="none" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" stroke="#4097c0" strokeWidth="2"/><path d="M12 17h.01M12 13a2 2 0 10-2-2" stroke="#4097c0" strokeWidth="2" strokeLinecap="round"/></svg>
@@ -115,9 +123,20 @@ export default function AdminSidebar({ active }: { active: string }) {
               </div>
             </Link>
           </li>
-          
           <li>
-            <Link href="/admin/product/view">
+            <Link href="/analysis">
+              <div
+                className={`flex items-center px-4 py-2 cursor-pointer hover:bg-blue-50 rounded-lg 
+                ${active === "analysis" ? "bg-blue-100 text-blue-900 font-bold" : "text-blue-800"}`}
+
+              >
+                <span className="mr-3">{icons.analysis}</span>
+                {open && "Analysis"}
+              </div>
+            </Link>
+          </li>
+          <li>
+            <Link href="/inventory">
               <div
                 className={`flex items-center px-4 py-2 cursor-pointer hover:bg-blue-50 rounded-lg
                 ${active === "inventory" ? "bg-blue-100 text-blue-900 font-bold" : "text-blue-800"}`}
@@ -129,7 +148,7 @@ export default function AdminSidebar({ active }: { active: string }) {
             </Link>
           </li>
           <li>
-            <Link href="/admin/customer/view">
+            <Link href="/customers">
               <div
                 className={`flex items-center px-4 py-2 cursor-pointer hover:bg-blue-50 rounded-lg 
                ${active === "customers" ? "bg-blue-100 text-blue-900 font-bold" : "text-blue-800"}`}
@@ -137,6 +156,17 @@ export default function AdminSidebar({ active }: { active: string }) {
               >
                 <span className="mr-3">{icons.customers}</span>
                 {open && "Customers"}
+              </div>
+            </Link>
+          </li>
+          <li>
+            <Link href="/ai-dashboard">
+              <div
+                className={`flex items-center px-4 py-2 cursor-pointer hover:bg-blue-50 rounded-lg 
+                ${active === "ai-dashboard" ? "bg-blue-100 text-blue-900 font-bold" : "text-blue-800"}`}
+              >
+                <span className="mr-3">{icons.ai}</span>
+                {open && "AI Dashboard"}
               </div>
             </Link>
           </li>

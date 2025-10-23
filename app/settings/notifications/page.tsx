@@ -13,7 +13,7 @@ export default function NotificationSettingsPage() {
 
   useEffect(() => {
     fetchCurrentUser()
-      .then((user: any) => {
+      .then((user) => {
         setEnabled(!!user.notificationsEnabled);
       })
       .catch(() => router.push("/auth/login"))
