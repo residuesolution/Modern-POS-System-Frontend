@@ -19,6 +19,12 @@ export const apiConfig = {
       HARDWARE_STATUS: '/api/admin/hardware-status',
       SYSTEM_CONFIG: '/api/admin/system-config',
     },
+    ai: {
+      RECOMMEND: '/api/ai/recommend',
+      PROMO: '/api/ai/promo',
+      FRAUD_SCORE: '/api/ai/fraud-score',
+      REORDER_SUGGESTIONS: '/api/ai/reorder-suggestions',
+    },
   },
   timeout: 10000,
   maxRetries: 3,

@@ -2,6 +2,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import ProfileHeader from "../../../components/ProfileHeader";
+
 import {
   fetchHardwareStatus,
   fetchCurrentUser,
@@ -13,7 +14,13 @@ export default function HardwareStatusPage() {
   const [devices, setDevices] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  const [user, setUser] = useState<any>(null);
+  type User = {
+    name?: string;
+    role?: string;
+    profilePhoto?: string;
+    [key: string]: any;
+  };
+  const [user, setUser] = useState<User | null>(null);
   const [showConfigModal, setShowConfigModal] = useState(false);
   const [selectedDeviceIndex, setSelectedDeviceIndex] = useState<number | null>(
     null
@@ -42,10 +49,10 @@ export default function HardwareStatusPage() {
             "data" in userData &&
             userData.data
           ? userData.data
-          : userData;
+          : {} as User;
       setUser(currentUser);
 
-      if (currentUser?.role !== "ADMIN") {
+      if ((currentUser as User)?.role !== "ADMIN") {
         router.replace("/dashboard");
         return;
       }
@@ -153,7 +160,7 @@ export default function HardwareStatusPage() {
   };
 
   return (
-    <div className="relative w-full flex flex-col items-center">
+    <div className="w-full flex flex-col items-center">
       {user && (
         <ProfileHeader
           name={user.name}

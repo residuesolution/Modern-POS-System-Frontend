@@ -9,14 +9,16 @@ export default function SettingsPage() {
     { label: "Notifications", href: "/settings/notifications" },
     { label: "Language & Region", href: "/settings/language" },
     { label: "Security", href: "/settings/security" },
-   
+
     // Add more as needed
   ];
 
   return (
     <div className="h-screen bg-gradient-to-br from-[#4097c0] via-[#91cce7] via-[#0c5875] to-[#023a50] flex items-center justify-center p-4 overflow-hidden">
       <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-8">
-        <h1 className="text-3xl font-bold text-blue-900 mb-8 text-center">Settings</h1>
+        <h1 className="text-3xl font-bold text-blue-900 mb-8 text-center">
+          Settings
+        </h1>
         <ul className="space-y-4">
           {settingsLinks.map((item) => (
             <li key={item.href}>
@@ -30,6 +32,15 @@ export default function SettingsPage() {
             </li>
           ))}
         </ul>
+      
+      <div className="text-center mt-6">
+        <Link
+          href="/dashboard"
+          className="text-blue-600 hover:underline text-xs"
+        >
+          &larr; Back to Dashboard
+        </Link>
+        </div>
       </div>
     </div>
   );
