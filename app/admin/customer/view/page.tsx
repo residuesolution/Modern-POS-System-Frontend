@@ -1,307 +1,283 @@
+'use client';
+import React, { useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
+import { fetchCurrentUser } from '@/services/authService';
+import TopNavBar from '@/components/TopNavBar';
+import Sidebar from "@/components/Sidebar";
+import {
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  Tooltip,
+  ResponsiveContainer,
+  Cell
+} from 'recharts';
 
-"use client";
-import React, { useEffect, useState } from "react";
-//import AdminSidebar from "@/components/AdminSidebar";
-import Sidebar from "@/components/Sidebar"; // 
-import TopNavBar from "@/components/TopNavBar"; // 
-import { fetchCurrentUser } from "@/services/authService";
+type CustomerApi = {
+  id?: number;
+  name?: string | null;
+  email?: string | null;
+  phone?: string | null;
+  loyaltyPoints?: number | null;
+  createdAt?: string | null;
+  totalPurchase?: number | string | null;
+  lastPurchase?: string | null;
+};
 
-interface Customer {
-  customer_id: number;
-  phone: string;
+interface User {
+  role: string;
   name?: string;
-  email?: string;
-  loyalty_points: number;
-  total_purchase?: number;
-  last_purchase?: string;
-  status?: string;
+  profilePhoto?: string;
+  [key: string]: any;
 }
 
-const CustomerListPage = () => {
-  const [user, setUser] = useState<any>(null);
-  const [customers, setCustomers] = useState<Customer[]>([]);
+export default function CustomersPage() {
+  const router = useRouter();
+  const [customers, setCustomers] = useState<CustomerApi[]>([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
-  const [searchTerm, setSearchTerm] = useState("");
-  const [filterStatus, setFilterStatus] = useState("all");
-
-  // Filter customers based on search and status
-  const filteredCustomers = customers.filter(customer => {
-    const matchesSearch = 
-      customer.phone.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (customer.name?.toLowerCase() || "").includes(searchTerm.toLowerCase()) ||
-      (customer.email?.toLowerCase() || "").includes(searchTerm.toLowerCase()) ||
-      customer.customer_id.toString().includes(searchTerm); // <-- allow search by ID
-    
-    const matchesStatus = filterStatus === "all" || customer.status === filterStatus;
-    
-    return matchesSearch && matchesStatus;
-  });
-
-  // Get loyalty status based on points
-  const getLoyaltyStatus = (points: number) => {
-    if (points >= 10000) return { status: "Platinum", color: "#3b82f6", bg: "#dbeafe" };
-    if (points >= 5000) return { status: "Gold", color: "#1d4ed8", bg: "#bfdbfe" };
-    if (points >= 1000) return { status: "Silver", color: "#1e40af", bg: "#e0e7ff" };
-    return { status: "Regular", color: "#3730a3", bg: "#f0f9ff" };
-  };
+  const [searchTerm, setSearchTerm] = useState('');
+  const [error, setError] = useState<string | null>(null);
+  const [user, setUser] = useState<User | null>(null);
 
   useEffect(() => {
-    async function getUserAndCustomers() {
-      try {
-        const userData = await fetchCurrentUser();
-        const currentUser =
-          userData && typeof userData === "object" && "user" in userData && userData.user
-            ? userData.user
-            : userData && typeof userData === "object" && "data" in userData && userData.data
-            ? userData.data
-            : userData;
-        setUser(currentUser);
-        if (
-          !currentUser ||
-          typeof currentUser !== "object" ||
-          currentUser === null ||
-          !("role" in currentUser) ||
-          !["ADMIN", "MANAGER", "CASHIER"].includes((currentUser as any).role)
-        ) {
-          setError("Unauthorized");
-          setLoading(false);
-          return;
-        }
-        const apiUrl = process.env.NEXT_PUBLIC_API_URL || "";
-        const authToken = typeof window !== "undefined" ? localStorage.getItem("authToken") : null;
-        // Fetch customers
-        const res = await fetch(`${apiUrl}/api/customer/all`, {
-          headers: {
-            Authorization: `Bearer ${authToken}`,
-          },
-        });
-        let customerData: Customer[] = [];
-        if (!res.ok) {
-          throw new Error(`Failed to fetch customers: ${res.status}`);
-        }
-        if (res.status === 204) {
-          customerData = [];
-        } else {
-          customerData = await res.json();
-        }
-        // Fetch orders
-        const orderRes = await fetch(`${apiUrl}/api/orders`, {
-          headers: {
-            Authorization: `Bearer ${authToken}`,
-          },
-        });
-        let orders: any[] = [];
-        if (orderRes.ok) {
-          orders = await orderRes.json();
-        }
-        // Use backend total_purchase directly
-        const enhancedData = customerData.map((customer: Customer) => {
-          let total_purchase = customer.total_purchase ?? 0;
-          let last_purchase = customer.last_purchase ?? "-";
-          return {
-            ...customer,
-            name: customer.name || `Customer ${customer.customer_id}`,
-            email: customer.email || `customer${customer.customer_id}@email.com`,
-            total_purchase,
-            last_purchase,
-            status: customer.loyalty_points >= 1000 ? "active" : "regular"
-          };
-        });
-        setCustomers(enhancedData);
-      } catch (err: any) {
-        setError(err.message || "Failed to load customers");
-      } finally {
-        setLoading(false);
-      }
-    }
     getUserAndCustomers();
   }, []);
 
-  if (loading) return <div className="text-blue-700 text-center py-8">Loading...</div>;
+  const normalize = (payload: any): any[] => {
+    if (!payload) return [];
+    if (Array.isArray(payload)) return payload;
+    if (payload.data) {
+      if (Array.isArray(payload.data)) return payload.data;
+      if (payload.data.content && Array.isArray(payload.data.content)) return payload.data.content;
+    }
+    if (payload.content && Array.isArray(payload.content)) return payload.content;
+    if (payload.items && Array.isArray(payload.items)) return payload.items;
+    for (const k of Object.keys(payload)) {
+      if (Array.isArray(payload[k])) return payload[k];
+    }
+    if (typeof payload === 'object') return [payload];
+    return [];
+  };
+
+  const getUserAndCustomers = async () => {
+    setLoading(true);
+    setError(null);
+
+    try {
+      const userData = await fetchCurrentUser();
+      const currentUser =
+        userData && typeof userData === 'object' && 'user' in userData && userData.user
+          ? userData.user as User
+          : userData && typeof userData === 'object' && 'data' in userData && userData.data
+          ? userData.data as User
+          : userData as User;
+      
+      if (!currentUser || !['ADMIN', 'MANAGER', 'CASHIER'].includes(currentUser.role)) {
+        router.replace('/unauthorized');
+        return;
+      }
+
+      setUser(currentUser);
+
+      const authToken = typeof window !== 'undefined' ? localStorage.getItem('authToken') : null;
+
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080';
+      const headers: Record<string, string> = { Accept: 'application/json' };
+      if (authToken) headers['Authorization'] = `Bearer ${authToken}`;
+
+      const res = await fetch(`${apiUrl}/api/customers`, { headers });
+      const json = await res.json().catch(() => null);
+      let list = normalize(json);
+
+      const enriched = await Promise.all(
+        list.map(async (c: any) => {
+          const id = c?.id;
+          if (!id) return c;
+          try {
+            const sRes = await fetch(`${apiUrl}/api/customers/${id}/summary`, { headers });
+            if (!sRes.ok) return c;
+            const sJson = await sRes.json().catch(() => null);
+            const data = sJson?.data ?? sJson;
+            return { ...c, totalPurchase: data?.totalPurchase ?? null, lastPurchase: data?.lastPurchase ?? null };
+          } catch {
+            return c;
+          }
+        })
+      );
+
+      setCustomers(Array.isArray(enriched) ? enriched : []);
+    } catch (err: any) {
+      console.error('Error fetching customers:', err);
+      setError(err?.message ?? 'Failed to fetch customers');
+      setCustomers([]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const safe = (v: any) => (v === null || v === undefined ? '' : String(v));
+  const q = (searchTerm ?? '').trim().toLowerCase();
+
+  const filteredCustomers = Array.isArray(customers)
+    ? customers.filter((customer) => {
+        const name = safe(customer.name).toLowerCase();
+        const email = safe(customer.email).toLowerCase();
+        const phone = safe(customer.phone).toLowerCase();
+        const id = safe(customer.id).toLowerCase();
+        if (!q) return true;
+        return name.includes(q) || email.includes(q) || phone.includes(q) || id.includes(q);
+      })
+    : [];
+
+  // Loyalty Status
+  const getCustomerStatus = (points?: number | null) => {
+    const p = Number(points ?? 0);
+    if (p >= 5000) return { label: 'Platinum', bg: '#f3e8ff', color: '#7c3aed' };
+    if (p >= 1000) return { label: 'Gold', bg: '#fef3c7', color: '#d97706' };
+    if (p >= 100) return { label: 'Silver', bg: '#f3f4f6', color: '#374151' };
+    return { label: 'Regular', bg: '#f3f4f6', color: '#4b5563' };
+  };
+
+  const chartData = [
+    { name: 'Platinum', value: filteredCustomers.filter(c => (c.loyaltyPoints ?? 0) >= 5000).length },
+    { name: 'Gold', value: filteredCustomers.filter(c => (c.loyaltyPoints ?? 0) >= 1000 && (c.loyaltyPoints ?? 0) < 5000).length },
+    { name: 'Silver', value: filteredCustomers.filter(c => (c.loyaltyPoints ?? 0) >= 100 && (c.loyaltyPoints ?? 0) < 1000).length },
+    { name: 'Regular', value: filteredCustomers.filter(c => (c.loyaltyPoints ?? 0) < 100).length },
+  ];
+
+  const formatTotal = (v: any) => {
+    if (!v) return '0';
+    const num = typeof v === 'string' ? Number(v) : Number(v);
+    if (Number.isNaN(num)) return String(v);
+    return num.toLocaleString();
+  };
+
+  const formatDate = (d?: string | null) => {
+    if (!d) return 'N/A';
+    const asDate = new Date(d);
+    if (!isNaN(asDate.getTime())) return asDate.toISOString().slice(0, 10);
+    return String(d).slice(0, 10);
+  };
+
+  if (loading) return <div className="text-blue-700 text-center py-8">Loading customers...</div>;
   if (error) return <div className="text-red-700 text-center py-8">{error}</div>;
 
   return (
-  <div className="flex max-h-screen bg-gray-150">
-      <Sidebar active="customer-view" />
-      <div className="flex-1 flex flex-col">
-        <TopNavBar
-  user={user || { name: "Admin", role: "ADMIN" }}
-  onSearch={setSearchTerm} // <-- Pass search handler
- 
-/>
+    <div className="flex bg-100 min-h-screen">
+      <Sidebar active="customers" />
+      <div className="flex-1 flex flex-col items-center">
+        <TopNavBar user={user || { name: "Admin", role: "ADMIN" }} onSearch={setSearchTerm} />
+        <main className="flex-1 w-full flex flex-col justify-start items-center pt-20">
+          <div className="w-full max-w-6xl p-4">
 
-       <main className="flex-1 ml">
-          <div className="p-8">
-            <div className="flex space-x-8">
-              {/* Left Column - Customer List */}
-              <div className="flex-1">
-                <div className="bg-white rounded-2xl shadow-sm overflow-hidden">
-                  {/* Header */}
-                  <div className="px-6 py-4 border-b border-gray-100">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center space-x-3">
-                        <div className="w-8 h-8 bg-blue-500 rounded-lg flex items-center justify-center">
-                          <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197m13.5-9a2.5 2.5 0 11-5 0 2.5 2.5 0 015 0z" />
-                          </svg>
-                        </div>
-                        <h2 className="text-lg font-semibold text-gray-900">Customer Lists & Details</h2>
-                      </div>
-                    
-                    {/* Stats Overview */}
-                    <div className="flex space-x-4">
-                      <div className="bg-blue-50 px-4 py-2 rounded-lg">
-                        <div className="text-sm font-semibold text-blue-700">{filteredCustomers.length}</div>
-                        <div className="text-xs text-blue-600">Total Customers</div>
-                      </div>
-                      <div className="bg-blue-50 px-4 py-2 rounded-lg">
-                        <div className="text-sm font-semibold text-blue-700">
-                          {Math.round(filteredCustomers.reduce((sum, c) => sum + c.loyalty_points, 0) / filteredCustomers.length) || 0}
-                        </div>
-                        <div className="text-xs text-blue-600">Avg. Points</div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Customer List */}
-                <div className="p-6">
-                  {filteredCustomers.length === 0 ? (
-                    <div className="text-center py-12 text-gray-500">
-                      <div className="text-4xl mb-4">🔍</div>
-                      <div className="text-lg font-medium mb-2">No customers found</div>
-                      <div className="text-sm">Try adjusting your search terms or filters</div>
-                    </div>
-                  ) : (
-                    <div className="space-y-4">
-                      {filteredCustomers.map((customer) => {
-                        const loyaltyInfo = getLoyaltyStatus(customer.loyalty_points);
-                        return (
-                          <div 
-                            key={customer.customer_id} 
-                            className="flex items-center justify-between p-4 bg-gray-50 rounded-xl hover:bg-gray-100 transition-colors"
-                          >
-                            <div className="flex items-center space-x-4">
-                              {/* Customer Avatar */}
-                              <div className="flex-shrink-0">
-                                <div 
-                                  className="w-12 h-12 rounded-full flex items-center justify-center text-white font-semibold"
-                                  style={{ backgroundColor: loyaltyInfo.color }}
-                                >
-                                  {(customer.name || 'C').charAt(0).toUpperCase()}
-                                </div>
-                              </div>
-
-                              {/* Customer Details */}
-                              <div>
-                                <div className="flex items-center space-x-2 mb-1">
-                                  <h3 className="font-semibold text-gray-900">{customer.name}</h3>
-                                  <span className="text-xs bg-gray-200 text-gray-600 px-2 py-1 rounded-full">
-                                    #{customer.customer_id.toString().padStart(6, '0')}
-                                  </span>
-                                </div>
-                                <p className="text-sm text-gray-500 mb-1">📞 {customer.phone}</p>
-                                <div className="flex items-center space-x-4 text-sm text-gray-600">
-                                  <span>Purchase: <span className="font-medium text-gray-900">Rs. {customer.total_purchase?.toLocaleString()}</span></span>
-                                  <span>Last: <span className="font-medium text-gray-900">{customer.last_purchase}</span></span>
-                                </div>
-                              </div>
-                            </div>
-
-                            <div className="flex items-center space-x-6">
-                              {/* Loyalty Status */}
-                              <div className="text-center">
-                                <div 
-                                  className="px-3 py-1 rounded-full text-xs font-medium mb-1"
-                                  style={{ backgroundColor: loyaltyInfo.bg, color: loyaltyInfo.color }}
-                                >
-                                  {loyaltyInfo.status}
-                                </div>
-                                <div className="text-xs text-gray-500">{customer.loyalty_points} points</div>
-                              </div>
-
-                              {/* Action Buttons */}
-                              <div className="flex items-center space-x-2">
-                                <button className="bg-blue-500 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-blue-600 transition-colors">
-                                  Send Offers
-                                </button>
-                                {/* <button className="p-2 text-gray-400 hover:text-blue-600 transition-colors">
-                                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
-                                  </svg>
-                                </button> */}
-                                {/* <button className="p-2 text-gray-400 hover:text-gray-600 transition-colors">
-                                  <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
-                                    <path d="M12 8c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm0 2c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm0 6c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z"/>
-                                  </svg>
-                                </button> */}
-                              </div>
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  )}
-                </div>
-              </div>
+            {/* Loyalty Graph */}
+            <div className="bg-white rounded-2xl shadow p-4 mb-6">
+              <h3 className="font-semibold text-gray-900 mb-2">Customer Loyalty Overview</h3>
+              <ResponsiveContainer width="100%" height={200}>
+                <BarChart data={chartData} margin={{ top: 10, right: 20, left: 0, bottom: 0 }}>
+                  <XAxis dataKey="name" axisLine={false} tickLine={false} />
+                  <YAxis allowDecimals={false} axisLine={false} tickLine={false} />
+                  <Tooltip cursor={{ fill: 'rgba(0,0,0,0.05)' }} formatter={(value: number) => [`${value}`, 'Customers']} />
+                  <Bar dataKey="value" radius={[8, 8, 0, 0]} maxBarSize={50} isAnimationActive={true}>
+                    {chartData.map((entry, index) => {
+                      let color = '#4f46e5';
+                      if (entry.name === 'Platinum') color = '#7c3aed';
+                      else if (entry.name === 'Gold') color = '#d97706';
+                      else if (entry.name === 'Silver') color = '#374151';
+                      else if (entry.name === 'Regular') color = '#4b5563';
+                      return <Cell key={`cell-${index}`} fill={color} />;
+                    })}
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
             </div>
 
-            {/* Right Column - Customer Analytics */}
-            <div className="w-80 space-y-6">
-              {/* Top Customers */}
-              <div className="bg-white rounded-2xl shadow-sm overflow-hidden">
-                <div className="px-4 py-3 border-b border-gray-100">
-                  <h3 className="text-sm font-semibold text-gray-900">Top Customers</h3>
-                </div>
-                <div className="p-4 space-y-3">
-                  {filteredCustomers.slice(0, 4).map((customer) => (
-                    <div key={customer.customer_id} className="flex items-center justify-between p-2 bg-blue-50 rounded-lg">
-                      <div className="flex items-center space-x-2">
-                        <div className="w-6 h-6 bg-blue-500 rounded-full flex items-center justify-center text-white text-xs font-semibold">
-                          {(customer.name || 'C').charAt(0)}
-                        </div>
-                        <div>
-                          <div className="text-xs font-medium text-gray-900">{customer.name}</div>
-                          <div className="text-xs text-gray-500">{customer.loyalty_points} pts</div>
-                        </div>
-                      </div>
-                      <div className="text-xs text-blue-600 font-medium">Rs. {customer.total_purchase?.toLocaleString()}</div>
-                    </div>
-                  ))}
-                </div>
-              </div>
+            {/* Header & Add Button */}
+            <div className="flex justify-between items-center mb-4">
+              <h2 className="text-2xl font-semibold text-gray-900">Customer List</h2>
+             <button
+  className="bg-blue-900 text-white px-4 py-2 rounded-lg hover:bg-blue-800 transition-colors"
+  onClick={() => router.push('/admin/customer/add')}
+>
+  Add Customer
+</button>
 
-              {/* Loyalty Programs */}
-              <div className="bg-white rounded-2xl shadow-sm overflow-hidden">
-                <div className="px-4 py-3 border-b border-gray-100">
-                  <h3 className="text-sm font-semibold text-gray-900">Loyalty Programs</h3>
+            </div>
+
+            {/* Customer Table */}
+            <div className="bg-white rounded-2xl shadow overflow-auto">
+              {filteredCustomers.length === 0 ? (
+                <div className="text-center py-12 text-gray-500">
+                  <div className="text-4xl mb-4">👥</div>
+                  <div className="text-lg font-medium mb-2">No customers found</div>
+                  <div className="text-sm">Try adjusting your search terms</div>
                 </div>
-                <div className="p-4 space-y-3">
-                  {["Platinum", "Gold", "Silver", "Regular"].map((tier, index) => {
-                    const count = filteredCustomers.filter(c => getLoyaltyStatus(c.loyalty_points).status === tier).length;
+              ) : (
+                <div className="min-w-full">
+                  {filteredCustomers.map((customer, idx) => {
+                    const status = getCustomerStatus(customer.loyaltyPoints);
+                    const totalStr = formatTotal(customer.totalPurchase ?? 0);
+                    const lastStr = customer.lastPurchase ? formatDate(customer.lastPurchase) : formatDate(customer.createdAt);
+                    const customerId = safe(customer.id);
+                    const paddedId = customerId.padStart ? customerId.padStart(10, '0') : customerId;
+
                     return (
-                      <div key={tier} className="flex items-center justify-between p-2 bg-blue-50 rounded-lg">
-                        <div className="flex items-center space-x-2">
-                          <div className={`w-6 h-6 rounded ${index === 0 ? 'bg-blue-600' : index === 1 ? 'bg-blue-500' : index === 2 ? 'bg-blue-400' : 'bg-blue-300'}`}></div>
-                          <div>
-                            <div className="text-xs font-medium text-gray-900">{tier}</div>
-                            <div className="text-xs text-gray-500">Members</div>
+                      <div
+                        key={customer.id ?? idx}
+                        className="flex items-center justify-between p-4 border-b border-gray-100 hover:bg-gray-50 transition-colors"
+                      >
+                        <div className="flex items-center space-x-4">
+                          <div className="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center font-semibold text-blue-600">
+                            {(safe(customer.name) || 'U')[0].toUpperCase()}
+                          </div>
+                          <div className="grid grid-cols-5 gap-4 w-full">
+                            <div>
+                              <div className="font-medium text-gray-900">{safe(customer.name)}</div>
+                              <div className="text-xs bg-gray-200 text-gray-600 px-2 py-1 rounded-full">#{paddedId}</div>
+                            </div>
+                            <div>
+                              <div className="text-xs text-gray-500">Phone</div>
+                              <div className="text-sm text-blue-600">{safe(customer.phone)}</div>
+                            </div>
+                            <div>
+                              <div className="text-xs text-gray-500">Email</div>
+                              <div className="text-sm text-gray-900 truncate">{safe(customer.email)}</div>
+                            </div>
+                            <div>
+                              <div className="text-xs text-gray-500">Total Purchase</div>
+                              <div className="text-sm text-gray-900">Rs. {totalStr}</div>
+                            </div>
+                            <div>
+                              <div className="text-xs text-gray-500">Last Purchase</div>
+                              <div className="text-sm text-gray-900">{lastStr}</div>
+                            </div>
                           </div>
                         </div>
-                        <div className="text-xs text-blue-600 font-medium">{count}</div>
+                        <div>
+                          <span
+                            style={{
+                              backgroundColor: status.bg,
+                              color: status.color,
+                              padding: '4px 12px',
+                              borderRadius: '9999px',
+                              fontSize: '12px',
+                              fontWeight: '500'
+                            }}
+                          >
+                            {status.label}
+                          </span>
+                        </div>
                       </div>
                     );
                   })}
                 </div>
-              </div>
+              )}
             </div>
+
           </div>
-        </div>
-      </main>
-    </div>
+        </main>
+      </div>
     </div>
   );
-};
-
-export default CustomerListPage;
+}

@@ -1,345 +1,237 @@
-"use client";
+'use client';
+import React, { useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
+import { fetchCurrentUser } from '@/services/authService';
+import TopNavBar from '@/components/TopNavBar';
+import Sidebar from "@/components/CashierSidebar";
 
-import { useState } from 'react';
-import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
-import { Card, CardContent } from '@/components/ui/card';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { 
-  Users,
-  Mail,
-  Phone,
-  ShoppingBag,
-  Calendar,
-  Award,
-  Plus
-} from 'lucide-react';
-import Sidebar from '@/components/ui/Sidebar';
-import Header from '@/components/ui/Header';
-
-interface Customer {
-  id: string;
-  name: string;
-  customerId: string;
-  phone: string;
-  email: string;
-  totalPurchase: number;
-  lastPurchase: string;
-  loyaltyStatus: 'Gold member' | 'Silver member' | 'Regular member' | 'Platinum member';
-  avatar: string;
-}
-
-const customers: Customer[] = [
-  {
-    id: '1',
-    name: 'John Doe',
-    customerId: '#CUSTID001',
-    phone: '+94 77 923 5763',
-    email: 'john@gmail.com',
-    totalPurchase: 50000,
-    lastPurchase: '2 days ago',
-    loyaltyStatus: 'Gold member',
-    avatar: 'https://images.pexels.com/photos/2379004/pexels-photo-2379004.jpeg?auto=compress&cs=tinysrgb&w=100'
-  },
-  {
-    id: '2',
-    name: 'Sarah',
-    customerId: '#CUSTID002',
-    phone: '+94 77 753 5831',
-    email: 'sarah9@gmail.com',
-    totalPurchase: 34000,
-    lastPurchase: '5 days ago',
-    loyaltyStatus: 'Silver member',
-    avatar: 'https://images.pexels.com/photos/774909/pexels-photo-774909.jpeg?auto=compress&cs=tinysrgb&w=100'
-  },
-  {
-    id: '3',
-    name: 'Sashini',
-    customerId: '#CUSTID003',
-    phone: '+94 77 522 3456',
-    email: 'sashini@gmail.com',
-    totalPurchase: 16000,
-    lastPurchase: '10 days ago',
-    loyaltyStatus: 'Regular member',
-    avatar: 'https://images.pexels.com/photos/712513/pexels-photo-712513.jpeg?auto=compress&cs=tinysrgb&w=100'
-  },
-  {
-    id: '4',
-    name: 'Kamal',
-    customerId: '#CUSTID004',
-    phone: '+94 77 157 3663',
-    email: 'kamal@gmail.com',
-    totalPurchase: 150000,
-    lastPurchase: '3 days ago',
-    loyaltyStatus: 'Platinum member',
-    avatar: 'https://images.pexels.com/photos/1043471/pexels-photo-1043471.jpeg?auto=compress&cs=tinysrgb&w=100'
-  },
-  {
-    id: '5',
-    name: 'Mufassir',
-    customerId: '#CUSTID005',
-    phone: '+94 77 341 8883',
-    email: 'mufa24@gmail.com',
-    totalPurchase: 60800,
-    lastPurchase: '1 week ago',
-    loyaltyStatus: 'Gold member',
-    avatar: 'https://images.pexels.com/photos/1222271/pexels-photo-1222271.jpeg?auto=compress&cs=tinysrgb&w=100'
-  },
-  {
-    id: '6',
-    name: 'Emma',
-    customerId: '#CUSTID006',
-    phone: '+94 77 864 5635',
-    email: 'emma@gmail.com',
-    totalPurchase: 10000,
-    lastPurchase: '2 days ago',
-    loyaltyStatus: 'Regular member',
-    avatar: 'https://images.pexels.com/photos/1239291/pexels-photo-1239291.jpeg?auto=compress&cs=tinysrgb&w=100'
-  },
-  {
-    id: '7',
-    name: 'David',
-    customerId: '#CUSTID007',
-    phone: '+94 77 268 7531',
-    email: 'david@gmail.com',
-    totalPurchase: 33000,
-    lastPurchase: '6 days ago',
-    loyaltyStatus: 'Regular member',
-    avatar: 'https://images.pexels.com/photos/1681010/pexels-photo-1681010.jpeg?auto=compress&cs=tinysrgb&w=100'
-  },
-  {
-    id: '8',
-    name: 'Alice',
-    customerId: '#CUSTID008',
-    phone: '+94 77 490 7760',
-    email: 'alice@gmail.com',
-    totalPurchase: 85000,
-    lastPurchase: '1 day ago',
-    loyaltyStatus: 'Platinum member',
-    avatar: 'https://images.pexels.com/photos/1130626/pexels-photo-1130626.jpeg?auto=compress&cs=tinysrgb&w=100'
-  },
-  {
-    id: '9',
-    name: 'Ramla',
-    customerId: '#CUSTID009',
-    phone: '+94 77 238 3598',
-    email: 'ramla@gmail.com',
-    totalPurchase: 40000,
-    lastPurchase: '2 weeks ago',
-    loyaltyStatus: 'Silver member',
-    avatar: 'https://images.pexels.com/photos/1542085/pexels-photo-1542085.jpeg?auto=compress&cs=tinysrgb&w=100'
-  }
-];
-
-const getLoyaltyBadgeColor = (status: string) => {
-  switch (status) {
-    case 'Platinum member':
-      return 'bg-purple-100 text-purple-800 border-purple-200';
-    case 'Gold member':
-      return 'bg-yellow-100 text-yellow-800 border-yellow-200';
-    case 'Silver member':
-      return 'bg-gray-100 text-gray-800 border-gray-200';
-    default:
-      return 'bg-blue-100 text-blue-800 border-blue-200';
-  }
+type CustomerApi = {
+  id?: number;
+  name?: string | null;
+  email?: string | null;
+  phone?: string | null;
+  loyaltyPoints?: number | null;
+  createdAt?: string | null;
+  totalPurchase?: number | string | null;
+  lastPurchase?: string | null;
 };
 
-export default function CustomersPage() {
-  const [searchTerm, setSearchTerm] = useState('');
-  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+interface User {
+  role: string;
+  name?: string;
+  profilePhoto?: string;
+  [key: string]: any;
+}
 
-  const filteredCustomers = customers.filter(customer =>
-    customer.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    customer.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    customer.phone.includes(searchTerm)
-  );
+export default function CustomersPage() {
+  const router = useRouter();
+  const [customers, setCustomers] = useState<CustomerApi[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [error, setError] = useState<string | null>(null);
+  const [user, setUser] = useState<User | null>(null);
+
+  useEffect(() => {
+    getUserAndCustomers();
+  }, []);
+
+  const normalize = (payload: any): any[] => {
+    if (!payload) return [];
+    if (Array.isArray(payload)) return payload;
+    if (payload.data) {
+      if (Array.isArray(payload.data)) return payload.data;
+      if (payload.data.content && Array.isArray(payload.data.content)) return payload.data.content;
+    }
+    if (payload.content && Array.isArray(payload.content)) return payload.content;
+    if (payload.items && Array.isArray(payload.items)) return payload.items;
+    for (const k of Object.keys(payload)) {
+      if (Array.isArray(payload[k])) return payload[k];
+    }
+    if (typeof payload === 'object') return [payload];
+    return [];
+  };
+
+  const getUserAndCustomers = async () => {
+    setLoading(true);
+    setError(null);
+
+    try {
+      const userData = await fetchCurrentUser();
+      const currentUser =
+        userData && typeof userData === 'object' && 'user' in userData && userData.user
+          ? userData.user as User
+          : userData && typeof userData === 'object' && 'data' in userData && userData.data
+          ? userData.data as User
+          : userData as User;
+      
+      if (!currentUser || !['ADMIN', 'MANAGER', 'CASHIER'].includes(currentUser.role)) {
+        router.replace('/unauthorized');
+        return;
+      }
+
+      setUser(currentUser);
+
+      const authToken = typeof window !== 'undefined' ? localStorage.getItem('authToken') : null;
+
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080';
+      const headers: Record<string, string> = { Accept: 'application/json' };
+      if (authToken) headers['Authorization'] = `Bearer ${authToken}`;
+
+      const res = await fetch(`${apiUrl}/api/customers`, { headers });
+      const json = await res.json().catch(() => null);
+      let list = normalize(json);
+
+      const enriched = await Promise.all(
+        list.map(async (c: any) => {
+          const id = c?.id;
+          if (!id) return c;
+          try {
+            const sRes = await fetch(`${apiUrl}/api/customers/${id}/summary`, { headers });
+            if (!sRes.ok) return c;
+            const sJson = await sRes.json().catch(() => null);
+            const data = sJson?.data ?? sJson;
+            return { ...c, totalPurchase: data?.totalPurchase ?? null, lastPurchase: data?.lastPurchase ?? null };
+          } catch {
+            return c;
+          }
+        })
+      );
+
+      setCustomers(Array.isArray(enriched) ? enriched : []);
+    } catch (err: any) {
+      console.error('Error fetching customers:', err);
+      setError(err?.message ?? 'Failed to fetch customers');
+      setCustomers([]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const safe = (v: any) => (v === null || v === undefined ? '' : String(v));
+  const q = (searchTerm ?? '').trim().toLowerCase();
+
+  const filteredCustomers = Array.isArray(customers)
+    ? customers.filter((customer) => {
+        const name = safe(customer.name).toLowerCase();
+        const email = safe(customer.email).toLowerCase();
+        const phone = safe(customer.phone).toLowerCase();
+        const id = safe(customer.id).toLowerCase();
+        if (!q) return true;
+        return name.includes(q) || email.includes(q) || phone.includes(q) || id.includes(q);
+      })
+    : [];
+
+  const getCustomerStatus = (points?: number | null) => {
+    const p = Number(points ?? 0);
+    if (p >= 5000) return { label: 'Platinum member', bg: '#f3e8ff', color: '#7c3aed' };
+    if (p >= 1000) return { label: 'Gold member', bg: '#fef3c7', color: '#d97706' };
+    if (p >= 100) return { label: 'Silver member', bg: '#f3f4f6', color: '#374151' };
+    return { label: 'Regular member', bg: '#f3f4f6', color: '#4b5563' };
+  };
+
+  const formatTotal = (v: any) => {
+    if (!v) return '0';
+    const num = typeof v === 'string' ? Number(v) : Number(v);
+    if (Number.isNaN(num)) return String(v);
+    return num.toLocaleString();
+  };
+
+  const formatDate = (d?: string | null) => {
+    if (!d) return 'N/A';
+    const asDate = new Date(d);
+    if (!isNaN(asDate.getTime())) return asDate.toISOString().slice(0, 10);
+    return String(d).slice(0, 10);
+  };
+
+  if (loading) return <div className="text-blue-700 text-center py-8">Loading customers...</div>;
+  if (error) return <div className="text-red-700 text-center py-8">{error}</div>;
 
   return (
-    <div className="min-h-screen bg-slate-50 flex">
-      {/* Fixed Sidebar */}
-      <Sidebar 
-        isOpen={isSidebarOpen} 
-        onToggle={() => setIsSidebarOpen(!isSidebarOpen)} 
-      />
+    <div className="flex bg-blue-400 min-h-screen">
+      <Sidebar active="customers" />
+      <div className="flex-1 flex flex-col items-center">
+        <TopNavBar user={user || { name: "Cashier", role: "Cashier" }} onSearch={setSearchTerm} />
+        <main className="flex-1 w-full flex justify-center items-start pt-20">
+          <div className="w-full max-w-6xl p-4">
+            <div className="flex justify-between items-center mb-6">
+              <h2 className="text-2xl font-semibold text-gray-900">Customer List</h2>
+              <button
+                className="bg-blue-500 text-white px-4 py-2 rounded-lg hover:bg-blue-600 transition-colors"
+                onClick={() => router.push('/cashier/customers/add')}
+              >
+                Add Customer
+              </button>
+            </div>
 
-      {/* Main Content - Adjusted for fixed sidebar */}
-      <div className="flex-1 flex flex-col lg:ml-72">
-        {/* Header */}
-        <Header 
-          onMenuToggle={() => setIsSidebarOpen(true)}
-          searchTerm={searchTerm}
-          onSearchChange={setSearchTerm}
-        />
-
-        {/* Main Content Area */}
-        <main className="flex-1 overflow-auto p-4 lg:p-6">
-          {/* Page Header */}
-          <div className="bg-white rounded-lg p-6 mb-6 shadow-sm">
-            <div className="flex items-center justify-between flex-wrap gap-4">
-              <div className="flex items-center gap-3">
-                <div className="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center">
-                  <Users className="h-6 w-6 text-blue-600" />
+            <div className="bg-white rounded-2xl shadow overflow-auto">
+              {filteredCustomers.length === 0 ? (
+                <div className="text-center py-12 text-gray-500">
+                  <div className="text-4xl mb-4">👥</div>
+                  <div className="text-lg font-medium mb-2">No customers found</div>
+                  <div className="text-sm">Try adjusting your search terms</div>
                 </div>
-                <h1 className="text-2xl font-bold text-slate-800">Customer Lists & Details</h1>
-              </div>
-              <Button className="bg-blue-500 hover:bg-blue-600 gap-2">
-                <Plus className="h-4 w-4" />
-                Add Customer
-              </Button>
-            </div>
-          </div>
+              ) : (
+                <div className="min-w-full">
+                  {filteredCustomers.map((customer, idx) => {
+                    const status = getCustomerStatus(customer.loyaltyPoints);
+                    const totalStr = formatTotal(customer.totalPurchase ?? 0);
+                    const lastStr = customer.lastPurchase ? formatDate(customer.lastPurchase) : formatDate(customer.createdAt);
+                    const customerId = safe(customer.id);
+                    const paddedId = customerId.padStart ? customerId.padStart(10, '0') : customerId;
 
-          {/* Customers List */}
-          <div className="space-y-4">
-            {filteredCustomers.map((customer) => (
-              <Card key={customer.id} className="hover:shadow-md transition-shadow">
-                <CardContent className="p-6">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-4">
-                      <Avatar className="h-16 w-16">
-                        <AvatarImage src={customer.avatar} alt={customer.name} />
-                        <AvatarFallback>{customer.name.split(' ').map(n => n[0]).join('')}</AvatarFallback>
-                      </Avatar>
-                      
-                      <div className="space-y-1">
-                        <div className="flex items-center gap-2">
-                          <h3 className="text-lg font-semibold text-slate-800">{customer.name}</h3>
-                          <Badge 
-                            variant="outline" 
-                            className={getLoyaltyBadgeColor(customer.loyaltyStatus)}
-                          >
-                            {customer.loyaltyStatus}
-                          </Badge>
-                        </div>
-                        <p className="text-sm text-slate-500">{customer.customerId}</p>
-                      </div>
-                    </div>
-
-                    <div className="hidden md:grid md:grid-cols-5 gap-8 flex-1 max-w-4xl ml-8">
-                      <div className="text-center">
-                        <p className="text-sm text-slate-500 mb-1">Phone number</p>
-                        <div className="flex items-center gap-1 justify-center">
-                          <Phone className="h-3 w-3 text-slate-400" />
-                          <p className="text-sm font-medium text-slate-700">{customer.phone}</p>
-                        </div>
-                      </div>
-
-                      <div className="text-center">
-                        <p className="text-sm text-slate-500 mb-1">Email ID</p>
-                        <div className="flex items-center gap-1 justify-center">
-                          <Mail className="h-3 w-3 text-slate-400" />
-                          <p className="text-sm font-medium text-blue-600">{customer.email}</p>
-                        </div>
-                      </div>
-
-                      <div className="text-center">
-                        <p className="text-sm text-slate-500 mb-1">Total purchase</p>
-                        <div className="flex items-center gap-1 justify-center">
-                          <ShoppingBag className="h-3 w-3 text-slate-400" />
-                          <p className="text-sm font-medium text-slate-700">Rs. {customer.totalPurchase.toLocaleString()}</p>
-                        </div>
-                      </div>
-
-                      <div className="text-center">
-                        <p className="text-sm text-slate-500 mb-1">Last purchase</p>
-                        <div className="flex items-center gap-1 justify-center">
-                          <Calendar className="h-3 w-3 text-slate-400" />
-                          <p className="text-sm font-medium text-slate-700">{customer.lastPurchase}</p>
-                        </div>
-                      </div>
-
-                      <div className="text-center">
-                        <p className="text-sm text-slate-500 mb-1">Loyalty status</p>
-                        <div className="flex items-center gap-1 justify-center">
-                          <Award className="h-3 w-3 text-slate-400" />
-                          <Badge 
-                            variant="outline" 
-                            className={`${getLoyaltyBadgeColor(customer.loyaltyStatus)} text-xs`}
-                          >
-                            {customer.loyaltyStatus}
-                          </Badge>
-                        </div>
-                      </div>
-                    </div>
-
-                    <Button 
-                      className="ml-4 text-blue-600 border-blue-200 hover:bg-blue-50"
-                    >
-                      Send offers
-                    </Button>
-                  </div>
-
-                  {/* Mobile Layout */}
-                  <div className="md:hidden mt-4 space-y-3">
-                    <div className="grid grid-cols-2 gap-4">
-                      <div>
-                        <p className="text-xs text-slate-500 mb-1">Phone</p>
-                        <div className="flex items-center gap-1">
-                          <Phone className="h-3 w-3 text-slate-400" />
-                          <p className="text-sm font-medium text-slate-700">{customer.phone}</p>
-                        </div>
-                      </div>
-                      <div>
-                        <p className="text-xs text-slate-500 mb-1">Email</p>
-                        <div className="flex items-center gap-1">
-                          <Mail className="h-3 w-3 text-slate-400" />
-                          <p className="text-sm font-medium text-blue-600 truncate">{customer.email}</p>
-                        </div>
-                      </div>
-                    </div>
-                    
-                    <div className="grid grid-cols-2 gap-4">
-                      <div>
-                        <p className="text-xs text-slate-500 mb-1">Total Purchase</p>
-                        <div className="flex items-center gap-1">
-                          <ShoppingBag className="h-3 w-3 text-slate-400" />
-                          <p className="text-sm font-medium text-slate-700">Rs. {customer.totalPurchase.toLocaleString()}</p>
-                        </div>
-                      </div>
-                      <div>
-                        <p className="text-xs text-slate-500 mb-1">Last Purchase</p>
-                        <div className="flex items-center gap-1">
-                          <Calendar className="h-3 w-3 text-slate-400" />
-                          <p className="text-sm font-medium text-slate-700">{customer.lastPurchase}</p>
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-1">
-                        <Award className="h-3 w-3 text-slate-400" />
-                        <Badge 
-                          variant="outline" 
-                          className={`${getLoyaltyBadgeColor(customer.loyaltyStatus)} text-xs`}
-                        >
-                          {customer.loyaltyStatus}
-                        </Badge>
-                      </div>
-                      <Button 
-                        size="sm"
-                        className="text-blue-600 border-blue-200 hover:bg-blue-50"
+                    return (
+                      <div
+                        key={customer.id ?? idx}
+                        className="flex items-center justify-between p-4 border-b border-gray-100 hover:bg-gray-50 transition-colors"
                       >
-                        Send offers
-                      </Button>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
-
-          {/* Empty State */}
-          {filteredCustomers.length === 0 && (
-            <div className="bg-white rounded-lg p-12 text-center shadow-sm">
-              <Users className="h-16 w-16 text-slate-300 mx-auto mb-4" />
-              <h3 className="text-lg font-medium text-slate-600 mb-2">No customers found</h3>
-              <p className="text-slate-500 mb-6">Try adjusting your search terms or add a new customer.</p>
-              <Button className="bg-blue-500 hover:bg-blue-600 gap-2">
-                <Plus className="h-4 w-4" />
-                Add Customer
-              </Button>
+                        <div className="flex items-center space-x-4">
+                          <div className="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center font-semibold text-blue-600">
+                            {(safe(customer.name) || 'U')[0].toUpperCase()}
+                          </div>
+                          <div className="grid grid-cols-5 gap-4 w-full">
+                            <div>
+                              <div className="font-medium text-gray-900">{safe(customer.name)}</div>
+                              <div className="text-xs bg-gray-200 text-gray-600 px-2 py-1 rounded-full">#{paddedId}</div>
+                            </div>
+                            <div>
+                              <div className="text-xs text-gray-500">Phone</div>
+                              <div className="text-sm text-blue-600">{safe(customer.phone)}</div>
+                            </div>
+                            <div>
+                              <div className="text-xs text-gray-500">Email</div>
+                              <div className="text-sm text-gray-900 truncate">{safe(customer.email)}</div>
+                            </div>
+                            <div>
+                              <div className="text-xs text-gray-500">Total Purchase</div>
+                              <div className="text-sm text-gray-900">Rs. {totalStr}</div>
+                            </div>
+                            <div>
+                              <div className="text-xs text-gray-500">Last Purchase</div>
+                              <div className="text-sm text-gray-900">{lastStr}</div>
+                            </div>
+                          </div>
+                        </div>
+                        <div>
+                          <span
+                            style={{
+                              backgroundColor: status.bg,
+                              color: status.color,
+                              padding: '4px 12px',
+                              borderRadius: '9999px',
+                              fontSize: '12px',
+                              fontWeight: '500'
+                            }}
+                          >
+                            {status.label}
+                          </span>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
             </div>
-          )}
+          </div>
         </main>
       </div>
     </div>
