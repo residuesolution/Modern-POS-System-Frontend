@@ -19,7 +19,7 @@ export default function TopNavBar({
 
   return (
     <div
-      className="fixed top-2 left-72 w-80/100 z-40 flex items-center px-8 py-3 bg-white rounded-bl-3xl rounded-tl-3xl rounded-br-3xl rounded-tr-3xl border-l-4 border-r-4"
+      className="fixed top-2 left-69 w-80/100 z-40 flex items-center px-8 py-3 bg-white rounded-bl-3xl rounded-tl-3xl rounded-br-3xl rounded-tr-3xl border-l-4 border-r-4"
       style={{
         height: 58,
         boxShadow: "0 10px 20px rgba(0, 0, 0, 0.1), 0 5px 10px rgba(0, 0, 0, 0.05)", // Adding a stronger 3D effect
