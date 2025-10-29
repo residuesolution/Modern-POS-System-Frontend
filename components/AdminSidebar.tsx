@@ -1,12 +1,15 @@
 "use client";
 import { useState, useEffect } from "react";
 import Link from "next/link";
-import { fetchCurrentUser } from "../services/authService";
+import { useRouter } from "next/navigation";
+import { fetchCurrentUser, logoutUser } from "../services/authService";
 
 type UserWithRole = { role?: string | null };
 
 export default function AdminSidebar({ active }: { active: string }) {
+  const [open, setOpen] = useState(true);
   const [role, setRole] = useState<string | null>(null);
+  const router = useRouter();
 
   useEffect(() => {
     async function getUserRole() {
@@ -25,7 +28,56 @@ export default function AdminSidebar({ active }: { active: string }) {
     }
     getUserRole();
   }, []);
+const handleLogout = () => {
+    logoutUser();
+    router.push("/auth/login");
+  };
 
+  // SVG icons for sidebar (updated as requested)
+  const icons = {
+    dashboard: (
+      <svg width="22" height="22" fill="none" viewBox="0 0 24 24"><path d="M3 13h8V3H3v10zm0 8h8v-6H3v6zm10 0h8V11h-8v10zm0-18v6h8V3h-8z" fill="#4097c0"/></svg>
+    ),
+    analysis: (
+      <svg width="22" height="22" fill="none" viewBox="0 0 24 24"><path d="M3 17h2v-7H3v7zm4 0h2v-4H7v4zm4 0h2V7h-2v10zm4 0h2v-2h-2v2z" fill="#4097c0"/></svg>
+    ),
+    inventory: (
+      <svg width="22" height="22" fill="none" viewBox="0 0 24 24"><path d="M20 6H4V4h16v2zm0 2v12H4V8h16zm-2 2H6v8h12v-8z" fill="#4097c0"/></svg>
+    ),
+    customers: (
+      // Group icon for customers (multiple people)
+      <svg width="22" height="22" fill="none" viewBox="0 0 24 24">
+        <circle cx="7" cy="10" r="3" fill="#4097c0"/>
+        <circle cx="17" cy="10" r="3" fill="#4097c0"/>
+        <ellipse cx="7" cy="17" rx="5" ry="3" fill="#b3e0f7"/>
+        <ellipse cx="17" cy="17" rx="5" ry="3" fill="#b3e0f7"/>
+      </svg>
+    ),
+    hardware: (
+      // New hardware status icon (chip style)
+      <svg width="22" height="22" fill="none" viewBox="0 0 24 24">
+        <rect x="5" y="5" width="14" height="14" rx="2" fill="#4097c0"/>
+        <rect x="9" y="9" width="6" height="6" rx="1" fill="#fff"/>
+        <path d="M12 1v4M12 19v4M1 12h4M19 12h4M4.22 4.22l2.83 2.83M16.95 16.95l2.83 2.83M4.22 19.78l2.83-2.83M16.95 7.05l2.83-2.83" stroke="#4097c0" strokeWidth="1.5"/>
+      </svg>
+    ),
+    system: (
+      <svg width="22" height="22" fill="none" viewBox="0 0 24 24"><path d="M12 15.5A3.5 3.5 0 1112 8a3.5 3.5 0 010 7.5zm7.94-2.34l-1.43-1.43a7.007 7.007 0 00.01-2.46l1.43-1.43a.996.996 0 00-.01-1.41l-2.12-2.12a.996.996 0 00-1.41-.01l-1.43 1.43a7.007 7.007 0 00-2.46-.01l-1.43-1.43a.996.996 0 00-1.41.01l-2.12 2.12a.996.996 0 00-.01 1.41l1.43 1.43a7.007 7.007 0 00-.01 2.46l-1.43 1.43a.996.996 0 00.01 1.41l2.12 2.12a.996.996 0 001.41.01l1.43-1.43a7.007 7.007 0 002.46.01l1.43 1.43a.996.996 0 001.41-.01l2.12-2.12a.996.996 0 00.01-1.41z" fill="#4097c0"/></svg>
+    ),
+    help: (
+      <svg width="22" height="22" fill="none" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" stroke="#4097c0" strokeWidth="2"/><path d="M12 17h.01M12 13a2 2 0 10-2-2" stroke="#4097c0" strokeWidth="2" strokeLinecap="round"/></svg>
+    ),
+    settings: (
+      // Classic gear icon
+      <svg width="22" height="22" fill="none" viewBox="0 0 24 24">
+        <circle cx="12" cy="12" r="3" stroke="#4097c0" strokeWidth="2"/>
+        <path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 01-2.83 2.83l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09a1.65 1.65 0 00-1-1.51 1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06a1.65 1.65 0 00.33-1.82 1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09a1.65 1.65 0 001.51-1 1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06a1.65 1.65 0 001.82.33h.09a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51h.09a1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06a1.65 1.65 0 00-.33 1.82v.09a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z" stroke="#4097c0" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+      </svg>
+    ),
+    logout: (
+      <svg width="22" height="22" fill="none" viewBox="0 0 24 24"><path d="M16 17v1a2 2 0 01-2 2H7a2 2 0 01-2-2V6a2 2 0 012-2h7a2 2 0 012 2v1M7 12h12m-3-3l3 3-3 3" stroke="#4097c0" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>
+    ),
+  };
   return (
     <div className="fixed top-0 left-0 h-screen w-60 bg-white shadow-lg flex flex-col border-r border-gray-200 z-20">
       {/* Header with logo */}
@@ -38,167 +90,148 @@ export default function AdminSidebar({ active }: { active: string }) {
           </div>
           <span className="text-xl font-bold text-blue-600">SwiftCart</span>
         </div>
+  
+
+  {/* return (
+    <div
+      className={`fixed top-0 left-0 h-screen z-20 transition-all duration-300 
+        ${open ? "w-64" : "w-16"} 
+        bg-white shadow-xl flex flex-col`}
+    > */}
+      {/* Header with logo */}
+      <div className="flex items-center justify-between px-4 py-3 border-b">
+        <div className="flex items-center space-x-2">
+          {open && (
+          <Link href="/dashboard">
+            <img src="/images/img2.png" alt="SwiftCart Logo" className="w-50 h-25" />
+          </Link>
+          )}
+        </div>
+        <button
+          onClick={() => setOpen(!open)}
+          className="text-[#4097c0] text-2xl focus:outline-none"
+        >
+          {open ? "≡" : "☰"}
+        </button>
       </div>
 
       {/* Navigation */}
       <nav className="flex-1 py-6">
-        <ul className="space-y-2 px-4">
+        <ul className="space-y-4">
           <li>
             <Link href="/dashboard">
               <div
-                className={`flex items-center px-4 py-3 rounded-xl cursor-pointer transition-all ${
-                  active === "dashboard" 
-                    ? "bg-orange-100 text-orange-800 font-semibold" 
-                    : "text-gray-700 hover:bg-gray-50"
-                }`}
+                className={`flex items-center px-4 py-2 cursor-pointer hover:bg-blue-50 rounded-lg 
+                ${active === "dashboard" ? "bg-blue-100 text-blue-900 font-bold" : "text-blue-800"}`}
               >
-                <svg className="w-5 h-5 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2H5a2 2 0 00-2-2z" />
-                </svg>
-                Dashboard
+                <span className="mr-3">{icons.dashboard}</span>
+                {open && "Dashboard"}
               </div>
             </Link>
           </li>
-          
           <li>
-            <Link href="/admin/analysis">
+            <Link href="/analysis">
               <div
-                className={`flex items-center px-4 py-3 rounded-xl cursor-pointer transition-all ${
-                  active === "analysis" 
-                    ? "bg-orange-100 text-orange-800 font-semibold" 
-                    : "text-gray-700 hover:bg-gray-50"
-                }`}
+                className={`flex items-center px-4 py-2 cursor-pointer hover:bg-blue-50 rounded-lg text-blue-800`}
               >
-                <svg className="w-5 h-5 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
-                </svg>
-                Analysis
+                <span className="mr-3">{icons.analysis}</span>
+                {open && "Analysis"}
               </div>
             </Link>
           </li>
-
           <li>
-            <Link href="/admin/product/view">
+            <Link href="/inventory">
               <div
-                className={`flex items-center px-4 py-3 rounded-xl cursor-pointer transition-all ${
-                  active === "product-view" || active === "inventory"
-                    ? "bg-blue-500 text-white font-semibold shadow-lg" 
-                    : "text-gray-700 hover:bg-gray-50"
-                }`}
+                className={`flex items-center px-4 py-2 cursor-pointer hover:bg-blue-50 rounded-lg text-blue-800`}
               >
-                <svg className="w-5 h-5 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
-                </svg>
-                Inventory
+                <span className="mr-3">{icons.inventory}</span>
+                {open && "Inventory"}
               </div>
             </Link>
           </li>
-
           <li>
-            <Link href="/admin/customer/view">
+            <Link href="/customers">
               <div
-                className={`flex items-center px-4 py-3 rounded-xl cursor-pointer transition-all ${
-                  active === "customer-view" 
-                    ? "bg-orange-100 text-orange-800 font-semibold" 
-                    : "text-gray-700 hover:bg-gray-50"
-                }`}
+                className={`flex items-center px-4 py-2 cursor-pointer hover:bg-blue-50 rounded-lg text-blue-800`}
               >
-                <svg className="w-5 h-5 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197m13.5-9a2.5 2.5 0 11-5 0 2.5 2.5 0 015 0z" />
-                </svg>
-                Customers
+                <span className="mr-3">{icons.customers}</span>
+                {open && "Customers"}
               </div>
             </Link>
           </li>
-
-          <li>
-            <Link href="/admin/help">
-              <div
-                className={`flex items-center px-4 py-3 rounded-xl cursor-pointer transition-all ${
-                  active === "help" 
-                    ? "bg-orange-100 text-orange-800 font-semibold" 
-                    : "text-gray-700 hover:bg-gray-50"
-                }`}
-              >
-                <svg className="w-5 h-5 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                </svg>
-                Help
-              </div>
-            </Link>
-          </li>
-
-          {/* Admin-only sections */}
           {role === "ADMIN" && (
             <>
-              <li className="pt-4">
-                <div className="text-xs text-gray-500 uppercase font-semibold px-4 mb-2">Admin Only</div>
-              </li>
               <li>
                 <Link href="/admin/hardware-status">
                   <div
-                    className={`flex items-center px-4 py-3 rounded-xl cursor-pointer transition-all ${
-                      active === "hardware" 
-                        ? "bg-orange-100 text-orange-800 font-semibold" 
-                        : "text-gray-700 hover:bg-gray-50"
-                    }`}
+                    className={`flex items-center px-4 py-2 cursor-pointer hover:bg-blue-50 rounded-lg 
+                    ${active === "hardware" ? "bg-blue-100 text-blue-900 font-bold" : "text-blue-800"}`}
                   >
-                    <svg className="w-5 h-5 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
-                    </svg>
-                    Hardware Status
+                    <span className="mr-3">{icons.hardware}</span>
+                    {open && "Hardware Status"}
                   </div>
                 </Link>
               </li>
               <li>
                 <Link href="/admin/system-configuration">
                   <div
-                    className={`flex items-center px-4 py-3 rounded-xl cursor-pointer transition-all ${
-                      active === "system" 
-                        ? "bg-orange-100 text-orange-800 font-semibold" 
-                        : "text-gray-700 hover:bg-gray-50"
-                    }`}
+                    className={`flex items-center px-4 py-2 cursor-pointer hover:bg-blue-50 rounded-lg 
+                    ${active === "system" ? "bg-blue-100 text-blue-900 font-bold" : "text-blue-800"}`}
                   >
-                    <svg className="w-5 h-5 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                    </svg>
-                    System Configuration
+                    <span className="mr-3">{icons.system}</span>
+                    {open && "System Configuration"}
                   </div>
                 </Link>
               </li>
             </>
           )}
+          <li>
+            <Link href="/help">
+              <div
+                className={`flex items-center px-4 py-2 cursor-pointer hover:bg-blue-50 rounded-lg
+                   ${active === "help" ? "bg-blue-100 text-blue-900 font-bold" : "text-blue-800"}`}
+              >
+                <span className="mr-3">{icons.help}</span>
+                {open && "Help"}
+              </div>
+            </Link>
+          </li>
         </ul>
       </nav>
 
       {/* Footer */}
-      <div className="px-4 py-4 border-t border-gray-100 space-y-2">
-        <Link href="/admin/settings">
-          <div className="flex items-center px-4 py-2 text-gray-600 cursor-pointer hover:bg-gray-50 rounded-xl transition-all">
-            <svg className="w-5 h-5 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-            </svg>
-            Settings
-          </div>
-        </Link>
-        <button 
-          onClick={() => {
-            // Add your logout logic here
-            if (typeof window !== 'undefined') {
-              localStorage.removeItem('authToken');
-              window.location.href = '/login';
-            }
-          }}
-          className="flex items-center px-4 py-2 text-gray-600 cursor-pointer hover:bg-gray-50 rounded-xl transition-all w-full text-left"
-        >
-          <svg className="w-5 h-5 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
-          </svg>
-          Log Out
-        </button>
+      <div className="mt-auto px-4 py-7 border-t text-xs flex flex-col gap-2">
+        {open ? (
+          <>
+            <Link href="/settings">
+              <div className="cursor-pointer hover:text-blue-900 flex items-center mb-6 text-blue-800">
+                <span className="mr-2">{icons.settings}</span> Settings
+              </div>
+            </Link>
+            <div
+              className="cursor-pointer hover:text-blue-900 flex items-center text-blue-800"
+              onClick={handleLogout}
+            >
+              <span className="mr-2">{icons.logout}</span> Log Out
+            </div>
+          </>
+        ) : (
+          <>
+            <Link href="/settings">
+              <div className="cursor-pointer hover:text-blue-900 flex items-center justify-center mb-6 text-blue-800">
+                <span>{icons.settings}</span>
+              </div>
+            </Link>
+            <div
+              className="cursor-pointer hover:text-blue-900 flex items-center justify-center text-blue-800"
+              onClick={handleLogout}
+            >
+              <span>{icons.logout}</span>
+            </div>
+          </>
+        )}
       </div>
+    </div>
     </div>
   );
 }
