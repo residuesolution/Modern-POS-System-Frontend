@@ -130,7 +130,7 @@ export default function AdminSidebar({ active }: { active: string }) {
             </Link>
           </li>
           <li>
-            <Link href="/inventory">
+            <Link href="/admin/product/view">
               <div
                 className={`flex items-center px-4 py-2 cursor-pointer hover:bg-blue-50 rounded-lg
                 ${active === "inventory" ? "bg-blue-100 text-blue-900 font-bold" : "text-blue-800"}`}
@@ -142,7 +142,7 @@ export default function AdminSidebar({ active }: { active: string }) {
             </Link>
           </li>
           <li>
-            <Link href="/customers">
+            <Link href="/admin/customer/view">
               <div
                 className={`flex items-center px-4 py-2 cursor-pointer hover:bg-blue-50 rounded-lg 
                ${active === "customers" ? "bg-blue-100 text-blue-900 font-bold" : "text-blue-800"}`}

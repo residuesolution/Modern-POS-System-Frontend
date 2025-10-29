@@ -57,7 +57,10 @@ export default function TopNavBar({
             className="border border-blue-700 rounded-full pl-10 pr-6 py-2 w-full text-base bg-white text-blue-700 placeholder:text-blue-700 focus:outline-none focus:ring-1 focus:ring-blue-700 transition shadow-lg hover:scale-105 transform"
             placeholder="Search here for product, order......"
             value={search}
-            onChange={(e) => setSearch(e.target.value)}
+            onChange={(e) => {
+          setSearch(e.target.value);
+          onSearch?.(e.target.value); // <-- Live search
+        }}
           />
         </form>
       </div>

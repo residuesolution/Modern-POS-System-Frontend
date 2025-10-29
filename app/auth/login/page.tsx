@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState, useEffect } from "react";
@@ -26,20 +27,42 @@ export default function Login() {
     setIsLoading(true);
     setError("");
     setSuccess("");
-    try {
-      const result = await loginUser(username, password);
 
-      if (result.status === "success" && result.token) {
+    try {
+      const result: any = await loginUser(username, password);
+
+      if (result?.status === "success" && result?.token) {
+        // store token (and optionally user)
         localStorage.setItem("authToken", result.token);
+        if (result.user) {
+          localStorage.setItem("user", JSON.stringify(result.user));
+        }
+
         setSuccess("Login successful! Redirecting...");
-        setTimeout(() => router.push("/dashboard"), 1500);
+
+        // determine role from common shapes
+        const role = result.role ?? result.user?.role ?? result.data?.role ?? "";
+
+        // short delay so user sees success message
+        // ...existing code...
+        setTimeout(() => {
+          if (role === "cashier") {
+-            router.push("/CashierDashboardPage");
++            router.push("/cashier/dashboard");
+          } else if (role === "admin" || role === "manager") {
+            router.push("/dashboard");
+          } else {
+            router.push("/dashboard");
+          }
+        }, 800);
+// ...existing code...
       } else {
-        setError(result.message || "Invalid credentials. Please try again.");
+        setError(result?.message || "Invalid credentials. Please try again.");
       }
-    } catch (error: any) {
+    } catch (err: any) {
       setError(
-        error?.message ||
-          error?.response?.data?.message ||
+        err?.message ||
+          err?.response?.data?.message ||
           "Something went wrong. Please try again."
       );
     } finally {
@@ -49,6 +72,7 @@ export default function Login() {
 
   if (!isClient) return null;
 
+ 
   return (
     <div className="h-screen bg-gradient-to-br from-[#4097c0] via-[#91cce7] via-[#0c5875] to-[#023a50] flex items-center justify-center p-4 overflow-hidden">
       <div className="flex flex-col md:flex-row bg-white rounded-2xl shadow-2xl overflow-hidden max-w-4xl w-full h-[550px]">

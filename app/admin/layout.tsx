@@ -6,9 +6,9 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   const pathname = usePathname();
   let active = "";
 
-  if (pathname.includes("hardware-status")) active = "hardware";
-  else if (pathname.includes("system-configuration")) active = "system";
-  else if (pathname.includes("dashboard")) active = "dashboard";
+  if (pathname && pathname.includes("hardware-status")) active = "hardware";
+  else if (pathname && pathname.includes("system-configuration")) active = "system";
+  else if (pathname && pathname.includes("dashboard")) active = "dashboard";
   
 
   return (
