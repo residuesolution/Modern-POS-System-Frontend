@@ -159,17 +159,6 @@ export default function AdminSidebar({ active }: { active: string }) {
               </div>
             </Link>
           </li>
-          <li>
-            <Link href="/ai-dashboard">
-              <div
-                className={`flex items-center px-4 py-2 cursor-pointer hover:bg-blue-50 rounded-lg 
-                ${active === "ai-dashboard" ? "bg-blue-100 text-blue-900 font-bold" : "text-blue-800"}`}
-              >
-                <span className="mr-3">{icons.ai}</span>
-                {open && "AI Dashboard"}
-              </div>
-            </Link>
-          </li>
           {role === "ADMIN" && (
             <>
               <li>
