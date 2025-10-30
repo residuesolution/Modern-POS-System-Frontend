@@ -143,7 +143,7 @@ export const fetchHardwareStatus = async () => {
   const res = await axios.get(
     `${API_BASE_URL}${apiConfig.endpoints.admin.HARDWARE_STATUS}`,
     {
-      headers: { Authorization: `Bearer ${token}` }
+      headers: { Authorization: `Bearer ${token}` },
     }
   );
   return res.data;
@@ -326,66 +326,21 @@ export async function updateFace(email: string, embedding: number[]) {
   }
 }
 
-// export async function deleteFace(email: string) {
-//   try {
-//     const res = await axios.delete(
-//       `${API_BASE_URL}${apiConfig.endpoints.auth.FACEID_DELETE}${encodeURIComponent(
-//         email
-//       )}`,
-//       {
-//         headers: buildHeaders(),
-//       }
-//     );
-//     return res.data;
-//   } catch (err: any) {
-//     if (err.response?.status === 401) {
-//       throw new Error("Unauthorized: missing or invalid token.");
-//     }
-//     throw new Error(err.response?.data?.message || err.message || "Failed to delete face data");
-//   }
-// export const sendHelpFeedback = async ({ email, feedback }: { email: string; feedback: string }) => {
-//   const res = await axios.post(
-//     `${API_BASE_URL}/api/help/feedback`,
-//     { userEmail: email, feedback }
-//   );
-//   return res.data;
-// };
-
-// // --- Product Search ---
-// export async function searchProducts(query: string) {
-//   const res = await axios.get(`${API_BASE_URL}/api/products/search`, { params: { q: query } });
-//   return res.data;
-// }
-
-// // --- Order Search ---
-// export async function searchOrders(query: string) {
-//   const res = await axios.get(`${API_BASE_URL}/api/orders/search`, { params: { q: query } });
-//   return res.data;
-// }
-
-// // --- Notifications ---
-// export async function fetchNotifications() {
-//   const token = localStorage.getItem("authToken");
-//   if (!token) throw new Error("Not authenticated");
-//   const res = await axios.get(
-//     `${API_BASE_URL}/api/notifications`,
-//     { headers: { Authorization: `Bearer ${token}` } }
-//   );
-//   return res.data;
-// }
-
-// export async function fetchProductByBarcode(barcode: string) {
-//   const res = await axios.get(`${API_BASE_URL}/api/product/barcode/${barcode}`);
-//   return res.data;
-// }
-
-// export async function createBill(data: { order: any, items: any[] }) {
-//   const token = localStorage.getItem("authToken");
-//   const res = await axios.post(
-//     `${API_BASE_URL}/api/orders/add`,
-//     data,
-//     { headers: { Authorization: `Bearer ${token}` } }
-//   );
-//   return res.data;
-// }
-//}
+export async function deleteFace(email: string) {
+  try {
+    const res = await axios.delete(
+      `${API_BASE_URL}${apiConfig.endpoints.auth.FACEID_DELETE}${encodeURIComponent(
+        email
+      )}`,
+      {
+        headers: buildHeaders(),
+      }
+    );
+    return res.data;
+  } catch (err: any) {
+    if (err.response?.status === 401) {
+      throw new Error("Unauthorized: missing or invalid token.");
+    }
+    throw new Error(err.response?.data?.message || err.message || "Failed to delete face data");
+  }
+}

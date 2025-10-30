@@ -15,15 +15,12 @@ export const apiConfig = {
       WEBAUTHN_LOGIN_OPTIONS: '/api/auth/webauthn/login/options',
       WEBAUTHN_LOGIN_VERIFY: '/api/auth/webauthn/login/verify',
 
-
        // FaceID endpoints
           FACEID_REGISTER: '/api/auth/faceid/register',
           FACEID_LOGIN: '/api/auth/faceid/login',
           FACEID_GET: '/api/auth/faceid/', 
           FACEID_UPDATE: '/api/auth/faceid/update',
           FACEID_DELETE: '/api/auth/faceid/' 
-
-
     },
     admin: {
       HARDWARE_STATUS: '/api/admin/hardware-status',
