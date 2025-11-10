@@ -12,6 +12,31 @@ interface AuthResponse {
   id?: number;
   [key: string]: any;
 }
+export async function emailOrderReceipt(orderId: number, email?: string) {
+  const body = email ? { email } : {};
+  const res = await client.post(`/api/orders/email/${orderId}`, body);
+  return res.data;
+}
+
+export async function smsOrderReceipt(orderId: number, phone: string) {
+  const res = await client.post(`/api/orders/sms/${orderId}`, { phone });
+  return res.data;
+}
+
+export async function printOrderReceipt(orderId: number) {
+  const res = await client.post(`/api/orders/print/${orderId}`);
+  return res.data; // { html: "..." }
+}
+
+export async function holdOrder(orderId: number) {
+  const res = await client.post(`/api/orders/hold/${orderId}`);
+  return res.data;
+}
+
+export async function voidOrder(orderId: number) {
+  const res = await client.post(`/api/orders/void/${orderId}`);
+  return res.data;
+}
 
 export async function loginUser(username: string, password: string) {
   try {
@@ -210,15 +235,70 @@ export const sendHelpFeedback = async ({
 };
 
 // Product search — backend path is /api/product/search
+// ...existing code...
 export async function searchProducts(query: string) {
-  const res = await client.get("/api/product/search", { params: { q: query } });
-  return res.data;
+  if (!query || !query.trim()) return [];
+  const base = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080";
+  const url = `${base}/api/product/search?q=${encodeURIComponent(query)}`;
+
+  const token = typeof window !== "undefined" ? localStorage.getItem("authToken") : null;
+  const headers: Record<string, string> = { Accept: "application/json" };
+
+  if (token) {
+    headers["Authorization"] = `Bearer ${token}`; // Set Authorization header with token
+  } else {
+    console.warn("[searchProducts] no auth token found in localStorage (authToken)");
+  }
+
+  const res = await fetch(url, { headers });
+  const text = await res.text();
+  console.debug("[searchProducts] url=", url, "status=", res.status, "raw=", text);
+
+  if (!res.ok) {
+    console.error("[searchProducts] HTTP error", res.status, text);
+    throw new Error(`Search failed (${res.status})`);
+  }
+  if (!text.trim()) return [];
+  try {
+    const json = JSON.parse(text);
+    return Array.isArray(json) ? json : json?.data || json?.items || [];
+  } catch {
+    console.warn("[searchProducts] invalid JSON, returning []", text);
+    return [];
+  }
 }
 
-// Order search
+
 export async function searchOrders(query: string) {
-  const res = await client.get("/api/orders/search", { params: { q: query } });
-  return res.data;
+  if (!query || !query.trim()) return [];
+  const base = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080";
+  const url = `${base}/api/order/search?q=${encodeURIComponent(query)}`;
+
+  const token = typeof window !== "undefined" ? localStorage.getItem("authToken") : null;
+  const headers: Record<string, string> = { Accept: "application/json" };
+
+  if (token) {
+    headers["Authorization"] = `Bearer ${token}`; // Set Authorization header with token
+  } else {
+    console.warn("[searchOrders] no auth token found in localStorage (authToken)");
+  }
+
+  const res = await fetch(url, { headers });
+  const text = await res.text();
+  console.debug("[searchOrders] url=", url, "status=", res.status, "raw=", text);
+
+  if (!res.ok) {
+    console.error("[searchOrders] HTTP error", res.status, text);
+    throw new Error(`Search failed (${res.status})`);
+  }
+  if (!text.trim()) return [];
+  try {
+    const json = JSON.parse(text);
+    return Array.isArray(json) ? json : json?.data || json?.items || [];
+  } catch {
+    console.warn("[searchOrders] invalid JSON, returning []", text);
+    return [];
+  }
 }
 
 // Fetch notifications
@@ -234,10 +314,35 @@ export async function fetchProductByBarcode(barcode: string) {
 }
 
 
-// Create bill (orders/add)
 export async function createBill(data: { order: any; items: any[] }) {
-  const res = await client.post("/api/orders/add", data);
-  return res.data;
+  // Use axios client to request arraybuffer so we can handle PDF binary or JSON fallback
+  const res = await client.post("/api/orders/add", data, { responseType: "arraybuffer" });
+  const contentType = (res.headers && (res.headers["content-type"] || res.headers["Content-Type"]))?.toLowerCase() || "";
+
+  // convert ArrayBuffer to Uint8Array for decoding / blob creation
+  const arr = res.data instanceof ArrayBuffer ? new Uint8Array(res.data) : new Uint8Array(res.data);
+
+  if (contentType.includes("application/json")) {
+    const text = new TextDecoder("utf-8").decode(arr);
+    try {
+      return JSON.parse(text);
+    } catch {
+      return { text };
+    }
+  }
+
+  if (contentType.includes("application/pdf")) {
+    const blob = new Blob([arr], { type: "application/pdf" });
+    return { pdf_blob: blob };
+  }
+
+  // HTML/text fallback
+  const text = new TextDecoder("utf-8").decode(arr);
+  if (contentType.includes("text/html") || text.trim().startsWith("<")) {
+    return { html: text };
+  }
+
+  return { text };
 }
 
 // helper to compose headers

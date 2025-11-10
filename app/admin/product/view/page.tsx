@@ -3,7 +3,7 @@ import React, { useEffect, useState } from 'react';
 import { fetchCurrentUser } from '@/services/authService';
 import { useRouter } from 'next/navigation';
 import TopNavBar from '@/components/TopNavBar';
-import Sidebar from "@/components/Sidebar"; // 
+import { dedupeById } from '@/components/lib/utils';
 
 interface Product {
   id: number;
@@ -25,6 +25,12 @@ interface User {
   [key: string]: any;
 }
 
+// Safe price formatter to avoid calling .toFixed on null/undefined
+function formatPrice(value: number | null | undefined, decimals = 2) {
+  const n = Number(value);
+  return Number.isFinite(n) ? n.toFixed(decimals) : (0).toFixed(decimals);
+}
+
 const ProductListPage = () => {
   // Supplier orders state
   const [supplierOrders, setSupplierOrders] = useState<any[]>([]);
@@ -38,30 +44,6 @@ const ProductListPage = () => {
   const [error, setError] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
 
-  // Filter products based on search
-  // const filteredProducts = products.filter((product) => {
-  //   const term = searchTerm.toLowerCase().trim();
-
-  //   // 1. Match product name or SKU
-  //   const matchesNameOrSku =
-  //     product.name.toLowerCase().includes(term) ||
-  //     product.sku.toLowerCase().includes(term);
-
-  //   // 2. Match by stock status keywords
-  //   const isLowStock = product.stock <= product.low_stock_alert_threshold && product.stock > 0;
-  //   const isInStock = product.status && product.stock > 0;
-  //   const isOutOfStock = product.stock <= 0 || !product.status;
-
-  //   const matchesStockStatus =
-  //     (term === "low stock" && isLowStock) ||
-  //     (term === "in stock" && isInStock) ||
-  //     (term === "out of stock" && isOutOfStock);
-
-  //   // If no search term → return all products
-  //   if (!term) return true;
-
-  //   return matchesNameOrSku || matchesStockStatus;
-  // });
   const filteredProducts = products.filter((product) => {
     const term = searchTerm.toLowerCase().trim();
     if (!term) return true;
@@ -106,7 +88,7 @@ const ProductListPage = () => {
         });
         if (!res.ok) throw new Error('Failed to fetch products');
         const data = await res.json();
-        setProducts(Array.isArray(data) ? data : []);
+        setProducts(Array.isArray(data) ? dedupeById(data) : []);
       } catch (error) {
         setError(error instanceof Error ? error.message : 'An error occurred');
       } finally {
@@ -165,7 +147,6 @@ const ProductListPage = () => {
 
   return (
     <div className="flex max-h-screen bg-gray-150">
-      <Sidebar active="product-view" />
       <div className="flex-1 flex flex-col">
        <TopNavBar
           user={user || { name: "Admin", role: "ADMIN" }}
@@ -173,7 +154,7 @@ const ProductListPage = () => {
         />
         <main className="flex-1 ml">
           {/* Content Area */}
-          <div className="p-8">
+          <div className="p-8 mt-10">
             <div className="flex space-x-8">
               {/* Left Column - Product List */}
               <div className="flex-1">
@@ -222,6 +203,7 @@ const ProductListPage = () => {
                       </div>
                     ) : (
                       <div className="space-y-4">
+                         <div className="max-h-80 overflow-y-auto">
                         {filteredProducts.map((product) => (
                           <div 
                             key={product.id} 
@@ -259,8 +241,8 @@ const ProductListPage = () => {
                                 </div>
                                 <div className="flex items-center space-x-4 text-sm text-gray-600">
                                   <span>Stock: <span className={`font-medium ${product.stock <= product.low_stock_alert_threshold ? 'text-red-600' : 'text-gray-900'}`}>{product.stock}</span></span>
-                                  <span>Price: <span className="font-medium text-gray-900">${product.price.toFixed(2)}</span></span>
-                                  <span>Cost: <span className="font-medium text-gray-900">${product.cost_price.toFixed(2)}</span></span>
+                                  <span>Price: <span className="font-medium text-gray-900">${formatPrice(product.price)}</span></span>
+                                  <span>Cost: <span className="font-medium text-gray-900">${formatPrice(product.cost_price)}</span></span>
                                   <span>Category: <span className="font-medium text-gray-900">{product.category_id}</span></span>
                                 </div>
                               </div>
@@ -310,6 +292,7 @@ const ProductListPage = () => {
                             </div>
                           </div>
                         ))}
+                        </div>
                       </div>
                     )}
                     
@@ -366,9 +349,6 @@ const ProductListPage = () => {
                             <div className="flex items-center justify-between mb-3">
                               <div className="flex items-center space-x-3">
                                 <div className="text-sm font-semibold text-gray-600">Order </div>
-                                {/* <div className="text-sm font-bold text-blue-600">
-                                  #{order.orderId || order.id || `ORD${2450 + index + 1}`}
-                                </div> */}
                               </div>
                             </div>
 
@@ -436,7 +416,7 @@ const ProductListPage = () => {
                   <div className="px-4 py-3 border-b border-gray-100">
                     <h3 className="text-lg font-semibold text-gray-900">Low Stock Alerts</h3>
                   </div>
-                  <div className="p-4 space-y-3">
+  <div className="p-4 space-y-3 max-h-19 overflow-y-auto">
                     {filteredProducts.filter(p => p.stock <= p.low_stock_alert_threshold).slice(0, 4).map((product) => (
                       <div key={product.id} className="flex items-center justify-between p-2 bg-orange-50 rounded-lg">
                         <div className="flex items-center space-x-2">
@@ -450,7 +430,7 @@ const ProductListPage = () => {
                         </div>
                         <div className="text-xs text-orange-600 font-medium">{product.stock} left</div>
                       </div>
-                    ))}
+                    ))} 
                     {filteredProducts.filter(p => p.stock <= p.low_stock_alert_threshold).length === 0 && (
                       <div className="text-center py-4 text-gray-500 text-sm">
                         All products are well stocked

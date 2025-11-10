@@ -2,7 +2,6 @@
 import React, { useState, ChangeEvent, FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import ProfileHeader from "@/components/ProfileHeader";
-import Sidebar from "@/components/Sidebar";
 import { fetchCurrentUser } from "@/services/authService";
 
 type User = {
@@ -103,7 +102,6 @@ const AddCustomerPage = () => {
 
   return (
     <div style={{ display: "flex", minHeight: "100vh" }}>
-      <Sidebar active="customer-view" />
       <main
         style={{
           flex: 1,

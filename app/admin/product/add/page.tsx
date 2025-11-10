@@ -2,7 +2,6 @@
 import React, { useState, ChangeEvent, FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import ProfileHeader from "@/components/ProfileHeader";
-import Sidebar from "@/components/Sidebar";
 import { fetchCurrentUser } from "@/services/authService";
 
 type User = {
@@ -12,7 +11,7 @@ type User = {
   [key: string]: any;
 };
 
-interface Product {
+interface ProductForm {
   name: string;
   category_id: string;
   sku: string;
@@ -30,7 +29,7 @@ const AddProductPage = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
-  const [formData, setFormData] = useState<Product>({
+  const [formData, setFormData] = useState<ProductForm>({
     name: "",
     category_id: "",
     sku: "",
@@ -114,7 +113,7 @@ const AddProductPage = () => {
       const response = await fetch(`${apiUrl}/api/product/add`, {
         method: "POST",
         headers: {
-          Authorization: `Bearer ${authToken}`, // Do NOT set Content-Type
+          Authorization: `Bearer ${authToken}`, // Do NOT set Content-Type for FormData
         },
         body: formDataToSend,
       });
@@ -124,8 +123,11 @@ const AddProductPage = () => {
         throw new Error(`Failed to add product: ${response.status} ${errText}`);
       }
 
+      // write a storage flag so Dashboard and other pages can react
+      try { localStorage.setItem("product-added", Date.now().toString()); } catch {}
+
       setSuccess("Product added successfully!");
-      router.push("/admin/product/view"); // Direct navigation
+      router.push("/admin/product/view");
     } catch (err: any) {
       setError(err?.message || "Failed to add product.");
     } finally {
@@ -137,7 +139,6 @@ const AddProductPage = () => {
 
   return (
     <div style={{ display: "flex", minHeight: "100vh"}}>
-      <Sidebar active="product-view" />
       <main style={{ 
         flex: 1, 
         marginLeft: "0px", 
@@ -145,7 +146,6 @@ const AddProductPage = () => {
         display: "flex", 
         flexDirection: "column", 
         alignItems: "center",
-        // background: "linear-gradient(135deg, #7166eaff 0%, #764ba2 100%)",
         minHeight: "100vh",
         width: "100%"
       }}>
@@ -268,8 +268,8 @@ const AddProductPage = () => {
                       transition: "all 0.2s ease",
                       outline: "none"
                     }}
-                    onFocus={(e) => e.target.style.borderColor = "#3b82f6"}
-                    onBlur={(e) => e.target.style.borderColor = "#e2e8f0"}
+                    onFocus={(e) => (e.target.style.borderColor = "#3b82f6")}
+                    onBlur={(e) => (e.target.style.borderColor = "#e2e8f0")}
                   />
                 </div>
 
@@ -300,13 +300,14 @@ const AddProductPage = () => {
                       transition: "all 0.2s ease",
                       outline: "none"
                     }}
-                    onFocus={(e) => e.target.style.borderColor = "#8b5cf6"}
-                    onBlur={(e) => e.target.style.borderColor = "#e2e8f0"}
+                    onFocus={(e) => (e.target.style.borderColor = "#8b5cf6")}
+                    onBlur={(e) => (e.target.style.borderColor = "#e2e8f0")}
                   >
                     <option value="">Select Category</option>
                     <option value="1">Electronics</option>
                     <option value="2">Clothing</option>
                     <option value="3">Books</option>
+                    <option value="4">Food</option> 
                   </select>
                 </div>
               </div>
@@ -340,8 +341,8 @@ const AddProductPage = () => {
                     transition: "all 0.2s ease",
                     outline: "none"
                   }}
-                  onFocus={(e) => e.target.style.borderColor = "#f59e0b"}
-                  onBlur={(e) => e.target.style.borderColor = "#e2e8f0"}
+                  onFocus={(e) => (e.target.style.borderColor = "#f59e0b")}
+                  onBlur={(e) => (e.target.style.borderColor = "#e2e8f0")}
                 />
               </div>
             </div>
@@ -397,8 +398,8 @@ const AddProductPage = () => {
                       outline: "none",
                       fontWeight: "600"
                     }}
-                    onFocus={(e) => e.target.style.borderColor = "#10b981"}
-                    onBlur={(e) => e.target.style.borderColor = "#e2e8f0"}
+                    onFocus={(e) => (e.target.style.borderColor = "#10b981")}
+                    onBlur={(e) => (e.target.style.borderColor = "#e2e8f0")}
                   />
                 </div>
 
@@ -433,8 +434,8 @@ const AddProductPage = () => {
                       transition: "all 0.2s ease",
                       outline: "none"
                     }}
-                    onFocus={(e) => e.target.style.borderColor = "#ef4444"}
-                    onBlur={(e) => e.target.style.borderColor = "#e2e8f0"}
+                    onFocus={(e) => (e.target.style.borderColor = "#ef4444")}
+                    onBlur={(e) => (e.target.style.borderColor = "#e2e8f0")}
                   />
                 </div>
               </div>
@@ -474,8 +475,8 @@ const AddProductPage = () => {
                       transition: "all 0.2s ease",
                       outline: "none"
                     }}
-                    onFocus={(e) => e.target.style.borderColor = "#3b82f6"}
-                    onBlur={(e) => e.target.style.borderColor = "#e2e8f0"}
+                    onFocus={(e) => (e.target.style.borderColor = "#3b82f6")}
+                    onBlur={(e) => (e.target.style.borderColor = "#e2e8f0")}
                   />
                 </div>
 
@@ -509,8 +510,8 @@ const AddProductPage = () => {
                       transition: "all 0.2s ease",
                       outline: "none"
                     }}
-                    onFocus={(e) => e.target.style.borderColor = "#f59e0b"}
-                    onBlur={(e) => e.target.style.borderColor = "#e2e8f0"}
+                    onFocus={(e) => (e.target.style.borderColor = "#f59e0b")}
+                    onBlur={(e) => (e.target.style.borderColor = "#e2e8f0")}
                   />
                 </div>
               </div>
@@ -590,12 +591,11 @@ const AddProductPage = () => {
                   </>
                 ) : (
                   <div style={{ position: "relative", maxWidth: "200px", margin: "0 auto" }}>
-                  <img
-  src={formData.image_url?.startsWith("blob:") ? formData.image_url : `${process.env.NEXT_PUBLIC_API_URL}${formData.image_url}`}
-  alt={formData.name}
-/>
-
-
+                    <img
+                      src={formData.image_url?.startsWith("blob:") ? formData.image_url : `${process.env.NEXT_PUBLIC_API_URL}${formData.image_url}`}
+                      alt={formData.name}
+                      style={{ maxWidth: "100%", borderRadius: 8 }}
+                    />
                     <button
                       type="button"
                       onClick={() => setFormData({...formData, image_file: undefined, image_url: ""})}
@@ -691,14 +691,14 @@ const AddProductPage = () => {
                 }}
                 onMouseEnter={(e) => {
                   if (!loading) {
-                    e.currentTarget.style.transform = "translateY(-2px)";
-                    e.currentTarget.style.boxShadow = "0 8px 25px rgba(16, 185, 129, 0.4)";
+                    (e.currentTarget as HTMLButtonElement).style.transform = "translateY(-2px)";
+                    (e.currentTarget as HTMLButtonElement).style.boxShadow = "0 8px 25px rgba(16, 185, 129, 0.4)";
                   }
                 }}
                 onMouseLeave={(e) => {
                   if (!loading) {
-                    e.currentTarget.style.transform = "translateY(0px)";
-                    e.currentTarget.style.boxShadow = "0 4px 15px rgba(16, 185, 129, 0.3)";
+                    (e.currentTarget as HTMLButtonElement).style.transform = "translateY(0px)";
+                    (e.currentTarget as HTMLButtonElement).style.boxShadow = "0 4px 15px rgba(16, 185, 129, 0.3)";
                   }
                 }}
               >
@@ -724,12 +724,12 @@ const AddProductPage = () => {
                   transform: "translateY(0px)"
                 }}
                 onMouseEnter={(e) => {
-                  e.currentTarget.style.transform = "translateY(-2px)";
-                  e.currentTarget.style.boxShadow = "0 8px 25px rgba(239, 68, 68, 0.4)";
+                  (e.currentTarget as HTMLButtonElement).style.transform = "translateY(-2px)";
+                  (e.currentTarget as HTMLButtonElement).style.boxShadow = "0 8px 25px rgba(239, 68, 68, 0.4)";
                 }}
                 onMouseLeave={(e) => {
-                  e.currentTarget.style.transform = "translateY(0px)";
-                  e.currentTarget.style.boxShadow = "0 4px 15px rgba(239, 68, 68, 0.3)";
+                  (e.currentTarget as HTMLButtonElement).style.transform = "translateY(0px)";
+                  (e.currentTarget as HTMLButtonElement).style.boxShadow = "0 4px 15px rgba(239, 68, 68, 0.3)";
                 }}
                 onClick={() => {
                   router.push("/admin/product/view");

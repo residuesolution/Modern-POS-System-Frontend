@@ -39,9 +39,7 @@ export default function AdminSidebar({ active }: { active: string }) {
     dashboard: (
       <svg width="22" height="22" fill="none" viewBox="0 0 24 24"><path d="M3 13h8V3H3v10zm0 8h8v-6H3v6zm10 0h8V11h-8v10zm0-18v6h8V3h-8z" fill="#4097c0"/></svg>
     ),
-    analysis: (
-      <svg width="22" height="22" fill="none" viewBox="0 0 24 24"><path d="M3 17h2v-7H3v7zm4 0h2v-4H7v4zm4 0h2V7h-2v10zm4 0h2v-2h-2v2z" fill="#4097c0"/></svg>
-    ),
+    
     inventory: (
       <svg width="22" height="22" fill="none" viewBox="0 0 24 24"><path d="M20 6H4V4h16v2zm0 2v12H4V8h16zm-2 2H6v8h12v-8z" fill="#4097c0"/></svg>
     ),
@@ -117,18 +115,7 @@ export default function AdminSidebar({ active }: { active: string }) {
               </div>
             </Link>
           </li>
-          <li>
-            <Link href="/analysis">
-              <div
-                className={`flex items-center px-4 py-2 cursor-pointer hover:bg-blue-50 rounded-lg 
-                ${active === "analysis" ? "bg-blue-100 text-blue-900 font-bold" : "text-blue-800"}`}
-
-              >
-                <span className="mr-3">{icons.analysis}</span>
-                {open && "Analysis"}
-              </div>
-            </Link>
-          </li>
+          
           <li>
             <Link href="/admin/product/view">
               <div

@@ -16,14 +16,14 @@ import {
   FaChevronDown,
 } from "react-icons/fa";
 import { IoChatbubbleEllipsesOutline } from "react-icons/io5";
-import { fetchCurrentUser, fetchProductByBarcode, createBill, fetchNotifications } from "../services/authService";
+import { fetchCurrentUser, fetchNotifications, createBill, emailOrderReceipt, smsOrderReceipt, printOrderReceipt, holdOrder, voidOrder } from "../services/authService";
 
 type Product = {
   id: number | string;
   name: string;
   price: number;
-  category?: string;        // Main category (e.g. Vegetables, Fruits, Bakery)
-  subcategory?: string;     // Subcategory (e.g. Leafy, Citrus, Pastries)
+  category?: string;
+  subcategory?: string;
   brand?: string;
   image?: string;
   image_url?: string;
@@ -61,21 +61,32 @@ async function fetchWithToken(path: string) {
   return res.json();
 }
 
+function resolveImageUrl(url?: string) {
+  if (!url) return "/images/placeholder.png";
+  if (url.startsWith("http://") || url.startsWith("https://")) return url;
+  const path = url.startsWith("/") ? url : `/${url}`;
+  return `${API_BASE}${path}`;
+}
+
 export default function Dashboard() {
   const [user, setUser] = useState<any>(null);
   const [products, setProducts] = useState<Product[]>([]);
-  const [categoriesFromApi, setCategoriesFromApi] = useState<string[]>([]);
-  // fixed display order for category chips
-  const categoryChips = ["All products", "Dairy & Eggs", "Vegetables", "Fruits", "Bakery", "Meat & Seafood"];
+
+  // Allowed categories (per your request). Use names that match Add Product select.
+  const ALLOWED_CATEGORIES = ["Electronics", "Clothing", "Books", "Food"];
+
+  // categoriesFromApi will contain only allowed categories (or fallback to ALLOWED_CATEGORIES)
+  const [categoriesFromApi, setCategoriesFromApi] = useState<string[]>(ALLOWED_CATEGORIES.slice());
+  const categoryChips = ["All products", ...ALLOWED_CATEGORIES];
   const [selectedCategory, setSelectedCategory] = useState<string>("All products");
 
-  // subcategory state & open toggles
+  // simple id->name map for categories from backend (used when product has category_id)
+  const [categoriesMap, setCategoriesMap] = useState<Record<string | number, string>>({});
+
   const [selectedSubcategory, setSelectedSubcategory] = useState<string>("All");
   const [openSubcats, setOpenSubcats] = useState<Record<string, boolean>>({});
 
-  // subcategory map for each main category
   const subcategoryMap: Record<string, string[]> = {
-    // Added "Chocolates" under "Dairy & Eggs"
     "Dairy & Eggs": ["Milk & Cream", "Cheese", "Butter & Spreads", "Eggs", "Chocolates"],
     Vegetables: ["Leafy", "Root", "Stems", "Mixed Veg"],
     Fruits: ["Citrus", "Berries", "Tropical"],
@@ -83,94 +94,97 @@ export default function Dashboard() {
     "Meat & Seafood": ["Beef", "Poultry", "Seafood"],
   };
 
-  // brand & sort state
   const [selectedBrand, setSelectedBrand] = useState<string>("All Brands");
-  const [sortBy, setSortBy] = useState<string>("none"); // none | name-asc | price-asc | price-desc
+  const [sortBy, setSortBy] = useState<string>("none");
 
   const [recentOrders, setRecentOrders] = useState<OrderSummary[]>([]);
+  const [expandedOrders, setExpandedOrders] = useState<Record<string | number, any>>({});
   const [cart, setCart] = useState<CartItem[]>([]);
   const [notifications, setNotifications] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [showCreateBill, setShowCreateBill] = useState(false);
 
-  // refs for programmatic scrolling
   const productsRef = useRef<HTMLDivElement | null>(null);
   const billingRef = useRef<HTMLDivElement | null>(null);
   const cartRef = useRef<HTMLDivElement | null>(null);
 
-  // per-subcategory refs & scroll state
   const subcatRefs = useRef<Record<string, HTMLDivElement | null>>({});
   const [subcatScrollState, setSubcatScrollState] = useState<Record<string, { left: boolean; right: boolean }>>({});
 
-  // nav controls
   const [canScrollLeft, setCanScrollLeft] = useState(false);
   const [canScrollRight, setCanScrollRight] = useState(false);
   const [canScrollUpBill, setCanScrollUpBill] = useState(false);
   const [canScrollDownBill, setCanScrollDownBill] = useState(false);
 
-  // prev counts
   const prevVisibleCount = useRef<number>(0);
   const prevCartCount = useRef<number>(0);
 
-  // auto-scroll control for "All products"
   const [autoScrollPaused, setAutoScrollPaused] = useState(false);
   const userInteractTimeout = useRef<number | null>(null);
 
-  // new: direction and speed control for continuous loop
   const [scrollDirection, setScrollDirection] = useState<"left" | "right">("left");
-  const [pxPerFrame, setPxPerFrame] = useState<number>(1.8); // tune speed
+  const [pxPerFrame, setPxPerFrame] = useState<number>(1.8);
 
-  // Demo products — expanded to include explicit subcategory, image_url, barcode, sku, description
-  // Replace placeholder images with your hosted images if desired.
-  const demoProducts: Product[] = [
-    { id: "d_001", name: "Whole Milk (1L)", price: 50, category: "Dairy & Eggs", subcategory: "Milk & Cream", brand: "FarmFresh", image: "https://via.placeholder.com/240x240.png?text=Whole+Milk", image_url: "https://via.placeholder.com/240x240.png?text=Whole+Milk", sku: "FM-001", barcode: "890000000001", stock: 12, unit: "1L", description: "Full fat whole milk." },
-    { id: "d_002", name: "Skimmed Milk (1L)", price: 55, category: "Dairy & Eggs", subcategory: "Milk & Cream", brand: "DailyPure", image: "https://via.placeholder.com/240x240.png?text=Skimmed+Milk", image_url: "https://via.placeholder.com/240x240.png?text=Skimmed+Milk", sku: "DP-002", barcode: "890000000002", stock: 8, unit: "1L", description: "Low fat skimmed milk." },
-    { id: "d_003", name: "Greek Yogurt (150g)", price: 65, category: "Dairy & Eggs", subcategory: "Milk & Cream", brand: "Yummi", image: "https://via.placeholder.com/240x240.png?text=Greek+Yogurt", image_url: "https://via.placeholder.com/240x240.png?text=Greek+Yogurt", sku: "YG-003", barcode: "890000000003", stock: 18, unit: "150g", description: "Creamy Greek yogurt." },
-    { id: "d_004", name: "Butter (100g)", price: 70, category: "Dairy & Eggs", subcategory: "Butter & Spreads", brand: "SpreadWell", image: "https://via.placeholder.com/240x240.png?text=Butter", image_url: "https://via.placeholder.com/240x240.png?text=Butter", sku: "BW-004", barcode: "890000000004", stock: 10, unit: "100g", description: "Salted butter." },
+  async function handlePrintLatest() {
+    const last = recentOrders[0];
+    if (!last) return alert("No recent order");
+    try {
+      const res = await printOrderReceipt(Number(last.id));
+      const html = (res && typeof res === "object" && "html" in res) ? (res as any).html : String(res ?? "");
+      const w = window.open("", "_blank");
+      if (w) {
+        w.document.write(html);
+        w.document.close();
+        w.focus();
+        w.print();
+      }
+    } catch (e) { console.error(e); alert("Print failed"); }
+  }
 
-    { id: "e_001", name: "Organic Eggs (12)", price: 160, category: "Dairy & Eggs", subcategory: "Eggs", brand: "HappyEgg", image: "https://via.placeholder.com/240x240.png?text=Organic+Eggs", image_url: "https://via.placeholder.com/240x240.png?text=Organic+Eggs", sku: "OE-001", barcode: "890000000105", stock: 14, unit: "12pcs", description: "Organic farm eggs (12 pcs)." },
-    { id: "e_002", name: "Brown Eggs (12)", price: 140, category: "Dairy & Eggs", subcategory: "Eggs", brand: "HappyEgg", image: "https://via.placeholder.com/240x240.png?text=Brown+Eggs", image_url: "https://via.placeholder.com/240x240.png?text=Brown+Eggs", sku: "BE-002", barcode: "890000000106", stock: 18, unit: "12pcs", description: "Natural brown eggs (12 pcs)." },
-    { id: "e_003", name: "Free-range Eggs (12)", price: 170, category: "Dairy & Eggs", subcategory: "Eggs", brand: "FreeFarm", image: "https://via.placeholder.com/240x240.png?text=Free-range+Eggs", image_url: "https://via.placeholder.com/240x240.png?text=Free-range+Eggs", sku: "FR-003", barcode: "890000000107", stock: 10, unit: "12pcs", description: "Free-range eggs (12 pcs)." },
+  async function handleEmailLatest() {
+    const last = recentOrders[0];
+    if (!last) return alert("No recent order");
+    const to = prompt("Enter email to send receipt to:", "");
+    if (!to) return;
+    try {
+      await emailOrderReceipt(Number(last.id), to);
+      alert("Email sent");
+    } catch (e) { console.error(e); alert("Email failed"); }
+  }
 
-    { id: "c_001", name: "Cheddar Cheese (200g)", price: 220, category: "Dairy & Eggs", subcategory: "Cheese", brand: "Cheesy", image: "https://via.placeholder.com/240x240.png?text=Cheddar+Cheese", image_url: "https://via.placeholder.com/240x240.png?text=Cheddar+Cheese", sku: "CH-001", barcode: "890000010001", stock: 12, unit: "200g", description: "Aged cheddar cheese." },
-    { id: "c_002", name: "Mozzarella (200g)", price: 240, category: "Dairy & Eggs", subcategory: "Cheese", brand: "MeltWell", image: "https://via.placeholder.com/240x240.png?text=Mozzarella", image_url: "https://via.placeholder.com/240x240.png?text=Mozzarella", sku: "MZ-002", barcode: "890000010002", stock: 10, unit: "200g", description: "Soft mozzarella for melting." },
-    { id: "c_003", name: "Feta Cheese (150g)", price: 200, category: "Dairy & Eggs", subcategory: "Cheese", brand: "GreekDel", image: "https://via.placeholder.com/240x240.png?text=Feta", image_url: "https://via.placeholder.com/240x240.png?text=Feta", sku: "FT-003", barcode: "890000010003", stock: 6, unit: "150g", description: "Tangy feta cheese." },
+  async function handleSmsLatest() {
+    const last = recentOrders[0];
+    if (!last) return alert("No recent order");
+    const phone = prompt("Enter phone number:", "");
+    if (!phone) return;
+    try {
+      await smsOrderReceipt(Number(last.id), phone);
+      alert("Message sent");
+    } catch (e) { console.error(e); alert("SMS failed"); }
+  }
 
-    // Chocolates varieties added under Dairy & Eggs -> Chocolates
-    { id: "ch_001", name: "Milk Chocolate Bar (50g)", price: 40, category: "Dairy & Eggs", subcategory: "Chocolates", brand: "ChocoDelight", image: "https://via.placeholder.com/240x240.png?text=Milk+Chocolate", image_url: "https://via.placeholder.com/240x240.png?text=Milk+Chocolate", sku: "MC-001", barcode: "890000070001", stock: 50, unit: "50g", description: "Smooth milk chocolate bar." },
-    { id: "ch_002", name: "Dark Chocolate (70% - 50g)", price: 60, category: "Dairy & Eggs", subcategory: "Chocolates", brand: "BitterBean", image: "https://via.placeholder.com/240x240.png?text=Dark+Chocolate", image_url: "https://via.placeholder.com/240x240.png?text=Dark+Chocolate", sku: "DC-002", barcode: "890000070002", stock: 30, unit: "50g", description: "Rich 70% cocoa dark chocolate." },
-    { id: "ch_003", name: "Chocolate Assorted Box (12pcs)", price: 450, category: "Dairy & Eggs", subcategory: "Chocolates", brand: "ChocoBox", image: "https://via.placeholder.com/240x240.png?text=Assorted+Chocolates", image_url: "https://via.placeholder.com/240x240.png?text=Assorted+Chocolates", sku: "CBX-003", barcode: "890000070003", stock: 12, unit: "12pcs", description: "Assorted filled chocolates - perfect for gifting." },
-    { id: "ch_004", name: "Hazelnut Chocolate Spread (200g)", price: 180, category: "Dairy & Eggs", subcategory: "Chocolates", brand: "SpreadWell", image: "https://via.placeholder.com/240x240.png?text=Hazelnut+Spread", image_url: "https://via.placeholder.com/240x240.png?text=Hazelnut+Spread", sku: "HS-004", barcode: "890000070004", stock: 20, unit: "200g", description: "Creamy hazelnut chocolate spread." },
+  async function handleHoldOrder(id?: number | string) {
+    const orderId = id ?? (recentOrders[0]?.id);
+    if (!orderId) return alert("No order selected");
+    if (!confirm("Hold this order?")) return;
+    try {
+      await holdOrder(Number(orderId));
+      alert("Order held");
+      // optional: refresh orders
+      await refreshOrders();
+    } catch (e) { console.error(e); alert("Failed to hold"); }
+  }
 
-    { id: "v_l_001", name: "Spinach (250g)", price: 30, category: "Vegetables", subcategory: "Leafy", brand: "GreenLeaf", image: "https://via.placeholder.com/240x240.png?text=Spinach", image_url: "https://via.placeholder.com/240x240.png?text=Spinach", sku: "SP-001", barcode: "890000020001", stock: 30, unit: "250g", description: "Fresh spinach leaves." },
-    { id: "v_l_002", name: "Lettuce (1pc)", price: 45, category: "Vegetables", subcategory: "Leafy", brand: "GreenLeaf", image: "https://via.placeholder.com/240x240.png?text=Lettuce", image_url: "https://via.placeholder.com/240x240.png?text=Lettuce", sku: "LT-002", barcode: "890000020002", stock: 22, unit: "1pc", description: "Crisp lettuce." },
-    { id: "v_r_001", name: "Potatoes (1kg)", price: 40, category: "Vegetables", subcategory: "Root", brand: "RootFarm", image: "https://via.placeholder.com/240x240.png?text=Potatoes", image_url: "https://via.placeholder.com/240x240.png?text=Potatoes", sku: "PT-001", barcode: "890000020011", stock: 50, unit: "1kg", description: "Red potatoes." },
-    { id: "v_r_002", name: "Carrots (1kg)", price: 80, category: "Vegetables", subcategory: "Root", brand: "RootFarm", image: "https://via.placeholder.com/240x240.png?text=Carrots", image_url: "https://via.placeholder.com/240x240.png?text=Carrots", sku: "CR-002", barcode: "890000020012", stock: 12, unit: "1kg", description: "Crunchy orange carrots." },
-    { id: "v_r_003", name: "Onions (1kg)", price: 60, category: "Vegetables", subcategory: "Root", brand: "RootFarm", image: "https://via.placeholder.com/240x240.png?text=Onions", image_url: "https://via.placeholder.com/240x240.png?text=Onions", sku: "ON-003", barcode: "890000020013", stock: 45, unit: "1kg", description: "Yellow onions." },
-    { id: "v_s_001", name: "Broccoli (500g)", price: 120, category: "Vegetables", subcategory: "Stems", brand: "VeggieBox", image: "https://via.placeholder.com/240x240.png?text=Broccoli", image_url: "https://via.placeholder.com/240x240.png?text=Broccoli", sku: "BR-001", barcode: "890000020021", stock: 12, unit: "500g", description: "Fresh broccoli." },
-    { id: "v_s_002", name: "Zucchini (1pc)", price: 65, category: "Vegetables", subcategory: "Stems", brand: "VeggieBox", image: "https://via.placeholder.com/240x240.png?text=Zucchini", image_url: "https://via.placeholder.com/240x240.png?text=Zucchini", sku: "ZC-002", barcode: "890000020022", stock: 14, unit: "1pc", description: "Green zucchini." },
-    { id: "v_m_001", name: "Mixed Veg Pack (500g)", price: 140, category: "Vegetables", subcategory: "Mixed Veg", brand: "MixFarm", image: "https://via.placeholder.com/240x240.png?text=Mixed+Veg+Pack", image_url: "https://via.placeholder.com/240x240.png?text=Mixed+Veg+Pack", sku: "MV-001", barcode: "890000020031", stock: 20, unit: "500g", description: "Carrots, peas, beans mix." },
-    { id: "v_m_002", name: "Bell Peppers (3pcs)", price: 150, category: "Vegetables", subcategory: "Mixed Veg", brand: "ColorFarm", image: "https://via.placeholder.com/240x240.png?text=Bell+Peppers", image_url: "https://via.placeholder.com/240x240.png?text=Bell+Peppers", sku: "BP-002", barcode: "890000020032", stock: 18, unit: "3pcs", description: "Red, yellow, green peppers." },
-
-    { id: "f_c_001", name: "Oranges (1kg)", price: 120, category: "Fruits", subcategory: "Citrus", brand: "CitrusCo", image: "https://via.placeholder.com/240x240.png?text=Oranges", image_url: "https://via.placeholder.com/240x240.png?text=Oranges", sku: "OR-001", barcode: "890000030001", stock: 15, unit: "1kg", description: "Juicy oranges." },
-    { id: "f_c_002", name: "Lemons (500g)", price: 70, category: "Fruits", subcategory: "Citrus", brand: "CitrusCo", image: "https://via.placeholder.com/240x240.png?text=Lemons", image_url: "https://via.placeholder.com/240x240.png?text=Lemons", sku: "LM-002", barcode: "890000030002", stock: 25, unit: "500g", description: "Fresh lemons." },
-    { id: "f_b_001", name: "Strawberries (250g)", price: 220, category: "Fruits", subcategory: "Berries", brand: "BerryGood", image: "https://via.placeholder.com/240x240.png?text=Strawberries", image_url: "https://via.placeholder.com/240x240.png?text=Strawberries", sku: "SB-001", barcode: "890000030011", stock: 10, unit: "250g", description: "Sweet strawberries." },
-    { id: "f_b_002", name: "Blueberries (125g)", price: 260, category: "Fruits", subcategory: "Berries", brand: "BerryGood", image: "https://via.placeholder.com/240x240.png?text=Blueberries", image_url: "https://via.placeholder.com/240x240.png?text=Blueberries", sku: "BB-002", barcode: "890000030012", stock: 8, unit: "125g", description: "Fresh blueberries." },
-    { id: "f_t_001", name: "Mango (1pc)", price: 90, category: "Fruits", subcategory: "Tropical", brand: "Tropico", image: "https://via.placeholder.com/240x240.png?text=Mango", image_url: "https://via.placeholder.com/240x240.png?text=Mango", sku: "MG-001", barcode: "890000030021", stock: 25, unit: "1pc", description: "Ripe mango." },
-    { id: "f_t_002", name: "Bananas (1 dozen)", price: 60, category: "Fruits", subcategory: "Tropical", brand: "Tropico", image: "https://via.placeholder.com/240x240.png?text=Bananas", image_url: "https://via.placeholder.com/240x240.png?text=Bananas", sku: "BN-002", barcode: "890000030022", stock: 20, unit: "1dz", description: "Sweet bananas." },
-
-    { id: "b_br_001", name: "Wheat Bread", price: 150, category: "Bakery", subcategory: "Bread", brand: "BakeHouse", image: "https://via.placeholder.com/240x240.png?text=Wheat+Bread", image_url: "https://via.placeholder.com/240x240.png?text=Wheat+Bread", sku: "WB-001", barcode: "890000040001", stock: 15, unit: "1pc", description: "Fresh baked wheat bread." },
-    { id: "b_p_001", name: "Croissant", price: 45, category: "Bakery", subcategory: "Pastries", brand: "BakeHouse", image: "https://via.placeholder.com/240x240.png?text=Croissant", image_url: "https://via.placeholder.com/240x240.png?text=Croissant", sku: "CR-001", barcode: "890000040011", stock: 25, unit: "1pc", description: "Buttery croissant." },
-    { id: "b_p_002", name: "Danish Pastry", price: 95, category: "Bakery", subcategory: "Pastries", brand: "PastryPros", image: "https://via.placeholder.com/240x240.png?text=Danish+Pastry", image_url: "https://via.placeholder.com/240x240.png?text=Danish+Pastry", sku: "DP-002", barcode: "890000040012", stock: 18, unit: "1pc", description: "Fruit filled danish." },
-    { id: "b_c_001", name: "Chocolate Cake (slice)", price: 200, category: "Bakery", subcategory: "Cakes", brand: "SweetBakes", image: "https://via.placeholder.com/240x240.png?text=Chocolate+Cake", image_url: "https://via.placeholder.com/240x240.png?text=Chocolate+Cake", sku: "CC-001", barcode: "890000040021", stock: 6, unit: "slice", description: "Rich chocolate slice." },
-    { id: "b_c_002", name: "Vanilla Cake (slice)", price: 190, category: "Bakery", subcategory: "Cakes", brand: "SweetBakes", image: "https://via.placeholder.com/240x240.png?text=Vanilla+Cake", image_url: "https://via.placeholder.com/240x240.png?text=Vanilla+Cake", sku: "VC-002", barcode: "890000040022", stock: 6, unit: "slice", description: "Classic vanilla cake." },
-
-    { id: "m_po_001", name: "Chicken Breast (500g)", price: 240, category: "Meat & Seafood", subcategory: "Poultry", brand: "Butcher's", image: "https://via.placeholder.com/240x240.png?text=Chicken+Breast", image_url: "https://via.placeholder.com/240x240.png?text=Chicken+Breast", sku: "CB-001", barcode: "890000050001", stock: 10, unit: "500g", description: "Boneless chicken breast." },
-    { id: "m_po_002", name: "Chicken Thighs (500g)", price: 220, category: "Meat & Seafood", subcategory: "Poultry", brand: "Butcher's", image: "https://via.placeholder.com/240x240.png?text=Chicken+Thighs", image_url: "https://via.placeholder.com/240x240.png?text=Chicken+Thighs", sku: "CT-002", barcode: "890000050002", stock: 12, unit: "500g", description: "Skin-on chicken thighs." },
-    { id: "m_bf_001", name: "Beef Steak (250g)", price: 420, category: "Meat & Seafood", subcategory: "Beef", brand: "PrimeCuts", image: "https://via.placeholder.com/240x240.png?text=Beef+Steak", image_url: "https://via.placeholder.com/240x240.png?text=Beef+Steak", sku: "BS-001", barcode: "890000050011", stock: 6, unit: "250g", description: "Prime beef steak." },
-    { id: "s_001", name: "Prawns (250g)", price: 360, category: "Meat & Seafood", subcategory: "Seafood", brand: "SeaBest", image: "https://via.placeholder.com/240x240.png?text=Prawns+250g", image_url: "https://via.placeholder.com/240x240.png?text=Prawns+250g", sku: "PR-001", barcode: "890000060001", stock: 8, unit: "250g", description: "Fresh prawns." },
-    { id: "s_002", name: "Salmon Fillet (250g)", price: 320, category: "Meat & Seafood", subcategory: "Seafood", brand: "SeaBest", image: "https://via.placeholder.com/240x240.png?text=Salmon+Fillet", image_url: "https://via.placeholder.com/240x240.png?text=Salmon+Fillet", sku: "SF-002", barcode: "890000060002", stock: 6, unit: "250g", description: "Atlantic salmon fillet." },
-  ];
+  async function handleVoidOrder(id?: number | string) {
+    const orderId = id ?? (recentOrders[0]?.id);
+    if (!orderId) return alert("No order selected");
+    if (!confirm("Void this order?")) return;
+    try {
+      await voidOrder(Number(orderId));
+      alert("Order voided");
+      await refreshOrders();
+    } catch (e) { console.error(e); alert("Failed to void"); }
+  }
 
   useEffect(() => {
     (async () => {
@@ -184,69 +198,166 @@ export default function Dashboard() {
     })();
   }, []);
 
+  // Helper to refresh orders and normalize counts & totals
+  async function refreshOrders() {
+    try {
+      setLoading(true);
+      const oResp = await fetchWithToken("/api/orders").catch(() => null);
+      const ordersList: any[] = oResp?.data || oResp || [];
+      const mappedOrders: OrderSummary[] = ordersList?.length
+        ? ordersList.slice().reverse().slice(0, 20).map((o: any) => {
+            const itemsArr = o.items || o.order_items || [];
+            const totalItems = o.totalItems ?? o.total_items ?? (Array.isArray(itemsArr) ? itemsArr.reduce((s: number, it: any) => s + (Number(it.quantity ?? it.qty ?? 1) || 0), 0) : 0);
+            const totalAmount = o.totalAmount ?? o.total_amount ?? (Array.isArray(itemsArr) ? itemsArr.reduce((s: number, it: any) => s + ((Number(it.unit_price ?? it.price ?? it.unitPrice) || 0) * (Number(it.quantity ?? it.qty ?? 1) || 0)), 0) : 0);
+            return {
+              id: o.id ?? o.orderId,
+              customerName: o.customerName ?? (o.customer && o.customer.name) ?? `#${o.id}`,
+              totalItems,
+              totalAmount,
+              created_at: o.created_at ?? o.createdAt ?? new Date().toISOString(),
+            };
+          })
+        : [];
+      setRecentOrders(mappedOrders);
+      setExpandedOrders({}); // collapse any expanded views after refresh
+    } catch (e) {
+      console.error("refreshOrders failed", e);
+    } finally {
+      setLoading(false);
+    }
+  }
+
   useEffect(() => {
     let mounted = true;
     (async () => {
       setLoading(true);
       try {
+        // fetch categories first so we can map category_id -> name
+        let categoriesList: any[] = [];
+        try {
+          const cResp = await fetchWithToken("/api/category").catch(() => null);
+          categoriesList = cResp?.data || cResp || [];
+        } catch (err) {
+          categoriesList = [];
+        }
+        const catMap: Record<string | number, string> = {};
+        (categoriesList || []).forEach((c: any) => {
+          if (c && (c.id != null || c._id != null) && (c.name || c.category_name || c.title)) {
+            const id = c.id ?? c._id;
+            const name = c.name ?? c.category_name ?? c.title;
+            catMap[id] = String(name).trim();
+          }
+        });
+        if (mounted) setCategoriesMap(catMap);
+
         const pResp = await fetchWithToken("/api/product").catch(() => null);
         const productsList: any[] = pResp?.data || pResp || [];
-        const oResp = await fetchWithToken("/api/orders").catch(() => null);
-        const ordersList: any[] = oResp?.data || oResp || [];
         const nResp: any = await fetchNotifications().catch(() => null);
         const notifs: any[] = (nResp?.data || nResp || []) as any[];
+
         if (!mounted) return;
 
         const mappedProducts: Product[] = productsList?.length
-          ? productsList.map((p: any) => ({
-              id: p.id ?? p.productId ?? p.sku ?? Math.random().toString(36).slice(2, 9),
-              name: p.name ?? p.productName ?? "Unnamed",
-              price: typeof p.price === "number" ? p.price : Number(p.price) || 0,
-              category: p.categoryName || p.category || p.mainCategory || (p.category_id ? String(p.category_id) : "Uncategorized"),
-              subcategory: p.subcategory || p.category_sub || p.subCategory || undefined,
-              brand: p.brand ?? p.manufacturer ?? p.brandName ?? undefined,
-              image: p.image ?? p.image_url ?? "",
-              image_url: p.image_url ?? p.image ?? "",
-              stock: typeof p.stock === "number" ? p.stock : Number(p.stock) || 0,
-              unit: p.unit ?? p.sku ?? "",
-              barcode: p.barcode ?? p.upc ?? undefined,
-              sku: p.sku ?? undefined,
-              description: p.description ?? undefined,
-            }))
+          ? productsList.map((p: any) => {
+              // preferred category name sources, fall back to mapping by category_id
+              const byId = (p.category_id != null && catMap[p.category_id]) ? catMap[p.category_id] : undefined;
+              const resolvedCategory = byId || p.categoryName || p.category || p.mainCategory || (p.category_id ? String(p.category_id) : "Uncategorized");
+              return {
+                id: p.id ?? p.productId ?? p.sku ?? Math.random().toString(36).slice(2, 9),
+                name: p.name ?? p.productName ?? "Unnamed",
+                price: typeof p.price === "number" ? p.price : Number(p.price) || 0,
+                category: String(resolvedCategory),
+                subcategory: p.subcategory || p.category_sub || p.subCategory || undefined,
+                brand: p.brand ?? p.manufacturer ?? p.brandName ?? undefined,
+                image: p.image ?? p.image_url ?? "",
+                image_url: p.image_url ?? p.image ?? "",
+                stock: typeof p.stock === "number" ? p.stock : Number(p.stock) || 0,
+                unit: p.unit ?? p.sku ?? "",
+                barcode: p.barcode ?? p.upc ?? undefined,
+                sku: p.sku ?? undefined,
+                description: p.description ?? undefined,
+              };
+            })
           : [];
-        setProducts(mappedProducts);
 
-        // keep API categories if available
-        setCategoriesFromApi(Array.from(new Set(mappedProducts.map((p) => p.category || "Uncategorized"))));
+        setProducts(uniqueProducts(mappedProducts));
 
-        const mappedOrders: OrderSummary[] = ordersList?.length
-          ? ordersList
-              .slice()
-              .reverse()
-              .slice(0, 20)
-              .map((o: any) => ({
-                id: o.id ?? o.orderId,
-                customerName: o.customerName ?? (o.customer && o.customer.name) ?? `#${o.id}`,
-                totalItems: o.totalItems ?? (o.items && o.items.length) ?? 0,
-                totalAmount: o.totalAmount ?? o.total_amount ?? 0,
-                created_at: o.created_at ?? o.createdAt ?? new Date().toISOString(),
-              }))
-          : [];
-        setRecentOrders(mappedOrders);
+        // derive categoriesFromApi but restrict to allowed categories
+        const apiCats = Array.from(new Set(mappedProducts.map((p) => (p.category || "").trim()))).filter(Boolean);
+        const filtered = apiCats.filter((c) => ALLOWED_CATEGORIES.includes(c));
+        setCategoriesFromApi(filtered.length ? filtered : ALLOWED_CATEGORIES.slice());
 
         setNotifications(Array.isArray(notifs) && notifs.length ? notifs : []);
       } catch (e) {
-        // ignore
+        // ignore simple load errors
       } finally {
-        if (mounted) setLoading(false);
+        if (mounted) {
+          // fetch orders after initial resources are loaded
+          await refreshOrders();
+        }
       }
     })();
+
+    function onStorage(e: StorageEvent) {
+      if (e.key === "product-added" && e.newValue) {
+        (async () => {
+          try {
+            // refresh categories + products using same mapping logic
+            let categoriesList: any[] = [];
+            try {
+              const cResp = await fetchWithToken("/api/category").catch(() => null);
+              categoriesList = cResp?.data || cResp || [];
+            } catch (err) {
+              categoriesList = [];
+            }
+            const catMap: Record<string | number, string> = {};
+            (categoriesList || []).forEach((c: any) => {
+              if (c && (c.id != null || c._id != null) && (c.name || c.category_name || c.title)) {
+                const id = c.id ?? c._id;
+                const name = c.name ?? c.category_name ?? c.title;
+                catMap[id] = String(name).trim();
+              }
+            });
+            setCategoriesMap(catMap);
+
+            const pResp = await fetchWithToken("/api/product").catch(() => null);
+            const productsList: any[] = pResp?.data || pResp || [];
+            const mappedProducts: Product[] = productsList?.length
+              ? productsList.map((p: any) => {
+                  const byId = (p.category_id != null && catMap[p.category_id]) ? catMap[p.category_id] : undefined;
+                  const resolvedCategory = byId || p.categoryName || p.category || p.mainCategory || (p.category_id ? String(p.category_id) : "Uncategorized");
+                  return {
+                    id: p.id ?? p.productId ?? p.sku ?? Math.random().toString(36).slice(2, 9),
+                    name: p.name ?? p.productName ?? "Unnamed",
+                    price: typeof p.price === "number" ? p.price : Number(p.price) || 0,
+                    category: String(resolvedCategory),
+                    subcategory: p.subcategory || p.category_sub || p.subCategory || undefined,
+                    brand: p.brand ?? p.manufacturer ?? p.brandName ?? undefined,
+                    image: p.image ?? p.image_url ?? "",
+                    image_url: p.image_url ?? p.image ?? "",
+                    stock: typeof p.stock === "number" ? p.stock : Number(p.stock) || 0,
+                    unit: p.unit ?? p.sku ?? "",
+                    barcode: p.barcode ?? p.upc ?? undefined,
+                    sku: p.sku ?? undefined,
+                    description: p.description ?? undefined,
+                  };
+                })
+              : [];
+            setProducts(uniqueProducts(mappedProducts));
+            const apiCats = Array.from(new Set(mappedProducts.map((p) => (p.category || "").trim()))).filter(Boolean);
+            const filtered = apiCats.filter((c) => ALLOWED_CATEGORIES.includes(c));
+            setCategoriesFromApi(filtered.length ? filtered : ALLOWED_CATEGORIES.slice());
+          } catch {}
+        })();
+      }
+    }
+    window.addEventListener("storage", onStorage);
     return () => {
       mounted = false;
+      window.removeEventListener("storage", onStorage);
     };
   }, []);
 
-  // match API/main category text to chip categories
   function categoryMatches(apiCat: string | undefined, chip: string | null) {
     if (!chip || chip === "All products") return true;
     const c = (apiCat || "").toLowerCase();
@@ -259,7 +370,22 @@ export default function Dashboard() {
     return c.includes(s);
   }
 
-  // subcategory matching uses explicit product.subcategory when present
+  function uniqueProducts(items: Product[]) {
+    const map = new Map<string, Product>();
+    for (const p of items || []) {
+      const key =
+        p.id != null && p.id !== ""
+          ? String(p.id)
+          : p.barcode
+          ? `barcode:${p.barcode}`
+          : p.sku
+          ? `sku:${p.sku}`
+          : `${(p.name || "").trim().toLowerCase()}::${String(p.price ?? "")}`;
+      if (!map.has(key)) map.set(key, p);
+    }
+    return Array.from(map.values());
+  }
+
   function subcategoryMatches(product: Product, sub: string | null, currentCategory?: string) {
     if (!sub || sub === "All") return true;
     const s = (sub || "").toLowerCase();
@@ -277,21 +403,17 @@ export default function Dashboard() {
       if (s.includes("seafood") || s.includes("prawn") || s.includes("salmon") || s.includes("fish") || s.includes("shrimp")) {
         return name.includes("prawn") || name.includes("prawns") || name.includes("salmon") || name.includes("fish") || name.includes("shrimp");
       }
-      if (s.includes("chocolate") || s.includes("chocolates") || s.includes("cocoa") || s.includes("hazelnut") || s.includes("dark") || s.includes("milk chocolate")) {
-        return name.includes("chocolate") || name.includes("chocolates") || name.includes("cocoa") || name.includes("hazelnut") || name.includes("dark") || name.includes("milk chocolate") || subcat.includes("chocolate") || subcat.includes("chocolates");
+      if (s.includes("chocolate") || s.includes("chocolates")) {
+        return name.includes("chocolate") || subcat.includes("chocolate") || subcat.includes("chocolates");
       }
       return name.includes(s) || cat.includes(s);
     }
     return false;
   }
 
-  function productsForSubcategory(sub: string) {
-    return visibleProducts.filter((p) => subcategoryMatches(p, sub, selectedCategory));
-  }
-
   const brands = useMemo(() => {
     const b = new Set<string>();
-    [...products, ...demoProducts].forEach((p) => {
+    products.forEach((p) => {
       if (p.brand) b.add(String(p.brand));
     });
     return ["All Brands", ...Array.from(b).sort()];
@@ -299,15 +421,11 @@ export default function Dashboard() {
 
   const visibleProducts = useMemo(() => {
     const apiProducts = products || [];
-    const demos = demoProducts || [];
 
     const categoryFiltered =
       selectedCategory === "All products"
-        ? [...apiProducts, ...demos]
-        : [
-            ...apiProducts.filter((p) => categoryMatches(p.category, selectedCategory)),
-            ...demos.filter((d) => categoryMatches(d.category, selectedCategory)),
-          ];
+        ? [...apiProducts]
+        : apiProducts.filter((p) => categoryMatches(p.category, selectedCategory));
 
     const brandFiltered =
       selectedBrand && selectedBrand !== "All Brands"
@@ -321,7 +439,6 @@ export default function Dashboard() {
     return sorted;
   }, [products, selectedCategory, selectedBrand, sortBy]);
 
-  // auto-scroll product list when new products added
   useEffect(() => {
     const cur = productsRef.current;
     const prev = prevVisibleCount.current;
@@ -332,10 +449,9 @@ export default function Dashboard() {
     prevVisibleCount.current = curLen;
   }, [visibleProducts]);
 
-  // Continuous looped auto-scroll for "All products"
   useEffect(() => {
     const el = productsRef.current;
-    if (!el || selectedCategory !== "All products") return;
+    if (!el || selectedCategory !== "All products" || visibleProducts.length <= 1) return;
 
     const clearUserTimeout = () => {
       if (userInteractTimeout.current) {
@@ -344,7 +460,6 @@ export default function Dashboard() {
       }
     };
 
-    // pause only on explicit interactions
     const onUserInteract = () => {
       setAutoScrollPaused(true);
       clearUserTimeout();
@@ -358,9 +473,7 @@ export default function Dashboard() {
     el.addEventListener("wheel", onUserInteract, { passive: true });
     el.addEventListener("touchstart", onUserInteract, { passive: true });
 
-    // render is duplicated in DOM; set start in the middle to avoid jump
-    const half = Math.floor(el.scrollWidth / 2);
-    if (el.scrollWidth > el.clientWidth) el.scrollLeft = half;
+    const maxScroll = () => (el ? el.scrollWidth - el.clientWidth : 0);
 
     let rafId = 0;
     let last = performance.now();
@@ -371,17 +484,16 @@ export default function Dashboard() {
       const dt = now - last;
       last = now;
       if (!autoScrollPaused && curEl.scrollWidth > curEl.clientWidth) {
-        const move = pxPerFrame * (dt / 16.6667); // scale by frame time (60fps baseline)
+        const move = pxPerFrame * (dt / 16.6667);
         if (scrollDirection === "left") {
           curEl.scrollLeft -= move;
           if (curEl.scrollLeft <= 0) {
-            // jump forward by half content width (keeps seamless loop)
-            curEl.scrollLeft += half;
+            curEl.scrollLeft = Math.max(0, maxScroll());
           }
         } else {
           curEl.scrollLeft += move;
-          if (curEl.scrollLeft >= curEl.scrollWidth - curEl.clientWidth) {
-            curEl.scrollLeft -= half;
+          if (curEl.scrollLeft >= maxScroll()) {
+            curEl.scrollLeft = 0;
           }
         }
       }
@@ -399,11 +511,10 @@ export default function Dashboard() {
     };
   }, [selectedCategory, visibleProducts, autoScrollPaused, scrollDirection, pxPerFrame]);
 
-  // auto-scroll cart
   useEffect(() => {
     const prev = prevCartCount.current;
     const cur = cartRef.current;
-    if (cur && cart.length > prev && cart.length > 2) {
+    if (cur && cart.length > prev && cart.length >= 3) {
       cur.scrollTo({ top: cur.scrollHeight, behavior: "smooth" });
     }
     prevCartCount.current = cart.length;
@@ -434,6 +545,7 @@ export default function Dashboard() {
     return { subtotal, discount, tax, grand };
   }, [cart]);
 
+  // updated checkout uses refreshOrders
   async function handleCheckout(paymentMethod = "CASH") {
     if (cart.length === 0) {
       alert("Cart is empty");
@@ -450,10 +562,16 @@ export default function Dashboard() {
     };
     const items = cart.map((it) => ({ product_id: it.product.id, quantity: it.qty, unit_price: it.product.price }));
     try {
-      await createBill({ order, items });
+      const res = await createBill({ order, items });
       setCart([]);
       alert("Checkout successful");
-    } catch {
+      try {
+        localStorage.setItem("product-updated", Date.now().toString());
+      } catch {}
+      // refresh orders using helper
+      await refreshOrders();
+    } catch (err) {
+      console.error("checkout failed", err);
       alert("Checkout failed");
     }
   }
@@ -463,7 +581,6 @@ export default function Dashboard() {
     return it ? it.qty : 0;
   };
 
-  // product horizontal nav
   const PROD_STEP = 340;
   function scrollProducts(direction: "left" | "right", ref?: React.RefObject<HTMLDivElement>) {
     const el = (ref && ref.current) || productsRef.current;
@@ -471,7 +588,6 @@ export default function Dashboard() {
     const delta = direction === "left" ? -PROD_STEP : PROD_STEP;
     el.scrollBy({ left: delta, behavior: "smooth" });
   }
-  // billing vertical nav
   const BILL_STEP = 240;
   function scrollBilling(direction: "up" | "down") {
     const el = billingRef.current;
@@ -480,7 +596,6 @@ export default function Dashboard() {
     el.scrollBy({ top: delta, behavior: "smooth" });
   }
 
-  // helper to update a single subcategory nav state
   function updateSubcatNav(sub: string) {
     const el = subcatRefs.current[sub];
     if (!el) {
@@ -493,7 +608,6 @@ export default function Dashboard() {
     }));
   }
 
-  // scroll a specific subcategory list
   const SUBCAT_STEP = 340;
   function scrollSubcat(sub: string, direction: "left" | "right") {
     const el = subcatRefs.current[sub];
@@ -502,7 +616,6 @@ export default function Dashboard() {
     el.scrollBy({ left: delta, behavior: "smooth" });
   }
 
-  // update nav enable/disable states
   useEffect(() => {
     function updateProductNav() {
       const el = productsRef.current;
@@ -532,7 +645,6 @@ export default function Dashboard() {
     };
   }, [visibleProducts, recentOrders]);
 
-  // watch subcategory containers and update their nav states
   useEffect(() => {
     const subs = subcategoryMap[selectedCategory] || [];
     const cleanupFns: Array<() => void> = [];
@@ -542,7 +654,6 @@ export default function Dashboard() {
       const onScroll = () => updateSubcatNav(sub);
       el.addEventListener("scroll", onScroll);
       window.addEventListener("resize", onScroll);
-      // initial update
       updateSubcatNav(sub);
       cleanupFns.push(() => {
         el.removeEventListener("scroll", onScroll);
@@ -557,6 +668,68 @@ export default function Dashboard() {
     setSelectedSubcategory(sub);
   }
 
+  function productsForSubcategory(sub: string): Product[] {
+    if (!sub || sub === "All") return visibleProducts;
+    return visibleProducts.filter((p) => subcategoryMatches(p, sub, selectedCategory));
+  }
+
+  // Toggle order details: fetch on demand and update recentOrders summary
+  async function toggleOrderDetails(id?: number | string) {
+    if (!id) return;
+    const key = String(id);
+    if (expandedOrders[key]) {
+      setExpandedOrders((prev) => {
+        const next = { ...prev };
+        delete next[key];
+        return next;
+      });
+      return;
+    }
+
+    try {
+      const resp = await fetchWithToken(`/api/orders/${id}`).catch(() => null);
+      const orderObj = resp?.data || resp || null;
+      if (!orderObj) {
+        setExpandedOrders((prev) => ({ ...prev, [key]: { items: [] } }));
+        return;
+      }
+
+      const items = orderObj.items || orderObj.order_items || orderObj.line_items || [];
+      const totalItems = items.length ? items.reduce((s: number, it: any) => s + (Number(it.quantity ?? it.qty ?? 1) || 0), 0) : (orderObj.totalItems ?? orderObj.total_items ?? 0);
+      const totalAmount = orderObj.totalAmount ?? orderObj.total_amount ?? (items.length ? items.reduce((s: number, it: any) => s + ((Number(it.unit_price ?? it.price ?? it.unitPrice) || 0) * (Number(it.quantity ?? it.qty ?? 1) || 0)), 0) : 0);
+
+      setExpandedOrders((prev) => ({ ...prev, [key]: { ...orderObj, items, totalItems, totalAmount } }));
+
+      setRecentOrders((prev) => prev.map((o) => (String(o.id) === key ? { ...o, totalItems, totalAmount } : o)));
+    } catch (err) {
+      console.error("Failed to load order details", err);
+    }
+  }
+
+  const groupedOrders = useMemo(() => {
+    const groups: Record<string, OrderSummary[]> = {};
+    (recentOrders || []).forEach((o) => {
+      const d = o?.created_at ? new Date(o.created_at) : new Date();
+      const key = d.toISOString().slice(0, 10); // YYYY-MM-DD
+      groups[key] = groups[key] || [];
+      groups[key].push(o);
+    });
+    // sort groups' orders newest first
+    Object.keys(groups).forEach((k) => {
+      groups[k].sort((a, b) => (new Date(b.created_at).getTime() - new Date(a.created_at).getTime()));
+    });
+    return groups;
+  }, [recentOrders]);
+
+  function formatGroupLabel(dateKey: string) {
+    const d = new Date(dateKey);
+    const today = new Date(); today.setHours(0, 0, 0, 0);
+    const msPerDay = 24 * 60 * 60 * 1000;
+    const diffDays = Math.round((today.getTime() - d.getTime()) / msPerDay);
+    if (diffDays === 0) return "Today";
+    if (diffDays === 1) return "Yesterday";
+    return d.toLocaleDateString(undefined, { weekday: "short", day: "numeric", month: "short" }); // e.g. "Mon, 10 Nov"
+  }
   return (
     <div className="min-h-screen flex bg-gradient-to-br from-blue-200 via-blue-400 to-blue-700">
       <style>{`
@@ -569,7 +742,6 @@ export default function Dashboard() {
         <TopNavBar user={user} onCreateBill={() => setShowCreateBill(true)} />
         <main className="flex-1 p-6 mt-16">
           <div className="max-w-[1200px] mx-auto grid grid-cols-1 lg:grid-cols-12 gap-6">
-            {/* Products + billing history */}
             <section className="lg:col-span-8 space-y-4">
               <div className="bg-white rounded-2xl shadow-xl p-4">
                 <div className="flex items-center justify-between mb-3">
@@ -624,7 +796,6 @@ export default function Dashboard() {
                   <div className="bg-gray-50 rounded-lg mt-2 relative">
                     <div className="pt-3 px-3">
                       <div className="relative">
-                        {/* direction controls */}
                         <div className="absolute right-3 top-3 z-30 flex gap-2 items-center">
                           <button
                             title="Move left (items travel right → left)"
@@ -651,105 +822,44 @@ export default function Dashboard() {
                             {visibleProducts.length === 0 ? (
                               <div className="text-sm text-gray-700 p-4">No products available</div>
                             ) : (
-                              <>
-                                {visibleProducts.map((p) => {
-                                  const qty = qtyInCart(p.id);
-                                  const isDemo =
-                                    String(p.id).startsWith("d_") ||
-                                    String(p.id).startsWith("e_") ||
-                                    String(p.id).startsWith("v_") ||
-                                    String(p.id).startsWith("f_") ||
-                                    String(p.id).startsWith("b_") ||
-                                    String(p.id).startsWith("m_") ||
-                                    String(p.id).startsWith("c_") ||
-                                    String(p.id).startsWith("s_") ||
-                                    String(p.id).startsWith("ch_");
-                                  return (
-                                    <div
-                                      key={p.id}
-                                      className={`flex-shrink-0 min-w-[160px] p-3 bg-white rounded shadow-sm flex flex-col items-center ${isDemo ? "opacity-95" : ""}`}
-                                    >
-                                      <img src={p.image || p.image_url || "/images/placeholder.png"} alt={p.name} className="h-20 object-contain mb-2" />
-                                      <div className="text-xs font-semibold text-gray-800 text-center">{p.name}</div>
-                                      <div className="text-[11px] text-gray-700 text-center">
-                                        {p.brand && <span className="mr-1 text-[10px] text-gray-500">{p.brand}</span>}
-                                        {p.subcategory && <span className="mx-1">• {p.subcategory}</span>}
-                                        {p.unit && <span className="ml-1">{p.unit}</span>}
-                                      </div>
-                                      <div className="text-blue-800 font-semibold text-xs mt-2">Rs. {p.price}</div>
-
-                                      <div className="mt-3 flex items-center gap-2">
-                                        <button
-                                          onClick={() => {
-                                            if (qty > 0) updateQty(p.id, qty - 1);
-                                          }}
-                                          className="px-2 py-1 bg-gray-100 rounded text-xs text-blue-800"
-                                          aria-label={`decrease-${p.id}`}
-                                        >
-                                          -
-                                        </button>
-                                        <span className="px-2 text-xs font-semibold">{qty}</span>
-                                        <button
-                                          onClick={() => addToCart(p, 1)}
-                                          className="px-2 py-1 bg-blue-600 text-white rounded text-xs"
-                                          aria-label={`increase-${p.id}`}
-                                        >
-                                          +
-                                        </button>
-                                      </div>
+                              visibleProducts.map((p) => {
+                                const qty = qtyInCart(p.id);
+                                return (
+                                  <div
+                                    key={String(p.id)}
+                                    className={`flex-shrink-0 min-w-[160px] p-3 bg-white rounded shadow-sm flex flex-col items-center`}
+                                  >
+                                    <img src={resolveImageUrl(p.image || p.image_url)} alt={p.name} className="h-20 object-contain mb-2" />
+                                    <div className="text-xs font-semibold text-gray-800 text-center">{p.name}</div>
+                                    <div className="text-[11px] text-gray-700 text-center">
+                                      {p.brand && <span className="mr-1 text-[10px] text-gray-500">{p.brand}</span>}
+                                      {p.subcategory && <span className="mx-1">• {p.subcategory}</span>}
+                                      {p.unit && <span className="ml-1">{p.unit}</span>}
                                     </div>
-                                  );
-                                })}
-                                {/* duplicate sequence for seamless loop — duplicates now include controls too */}
-                                {visibleProducts.map((p) => {
-                                  const qty = qtyInCart(p.id);
-                                  const isDemo =
-                                    String(p.id).startsWith("d_") ||
-                                    String(p.id).startsWith("e_") ||
-                                    String(p.id).startsWith("v_") ||
-                                    String(p.id).startsWith("f_") ||
-                                    String(p.id).startsWith("b_") ||
-                                    String(p.id).startsWith("m_") ||
-                                    String(p.id).startsWith("c_") ||
-                                    String(p.id).startsWith("s_") ||
-                                    String(p.id).startsWith("ch_");
-                                  return (
-                                    <div
-                                      key={`${p.id}-dup`}
-                                      className={`flex-shrink-0 min-w-[160px] p-3 bg-white rounded shadow-sm flex flex-col items-center ${isDemo ? "opacity-95" : ""}`}
-                                    >
-                                      <img src={p.image || p.image_url || "/images/placeholder.png"} alt={p.name} className="h-20 object-contain mb-2" />
-                                      <div className="text-xs font-semibold text-gray-800 text-center">{p.name}</div>
-                                      <div className="text-[11px] text-gray-700 text-center">
-                                        {p.brand && <span className="mr-1 text-[10px] text-gray-500">{p.brand}</span>}
-                                        {p.subcategory && <span className="mx-1">• {p.subcategory}</span>}
-                                        {p.unit && <span className="ml-1">{p.unit}</span>}
-                                      </div>
-                                      <div className="text-blue-800 font-semibold text-xs mt-2">Rs. {p.price}</div>
+                                    <div className="text-blue-800 font-semibold text-xs mt-2">Rs. {p.price}</div>
 
-                                      <div className="mt-3 flex items-center gap-2">
-                                        <button
-                                          onClick={() => {
-                                            if (qty > 0) updateQty(p.id, qty - 1);
-                                          }}
-                                          className="px-2 py-1 bg-gray-100 rounded text-xs text-blue-800"
-                                          aria-label={`decrease-${p.id}-dup`}
-                                        >
-                                          -
-                                        </button>
-                                        <span className="px-2 text-xs font-semibold">{qty}</span>
-                                        <button
-                                          onClick={() => addToCart(p, 1)}
-                                          className="px-2 py-1 bg-blue-600 text-white rounded text-xs"
-                                          aria-label={`increase-${p.id}-dup`}
-                                        >
-                                          +
-                                        </button>
-                                      </div>
+                                    <div className="mt-3 flex items-center gap-2">
+                                      <button
+                                        onClick={() => {
+                                          if (qty > 0) updateQty(p.id, qty - 1);
+                                        }}
+                                        className="px-2 py-1 bg-gray-100 rounded text-xs text-blue-800"
+                                        aria-label={`decrease-${p.id}`}
+                                      >
+                                        -
+                                      </button>
+                                      <span className="px-2 text-xs font-semibold">{qty}</span>
+                                      <button
+                                        onClick={() => addToCart(p, 1)}
+                                        className="px-2 py-1 bg-blue-600 text-white rounded text-xs"
+                                        aria-label={`increase-${p.id}`}
+                                      >
+                                        +
+                                      </button>
                                     </div>
-                                  );
-                                })}
-                              </>
+                                  </div>
+                                );
+                              })
                             )}
                           </div>
                         </div>
@@ -800,13 +910,12 @@ export default function Dashboard() {
                                     ) : (
                                       items.map((p) => {
                                         const qty = qtyInCart(p.id);
-                                        const isDemo = String(p.id).startsWith("d_") || String(p.id).startsWith("e_") || String(p.id).startsWith("v_") || String(p.id).startsWith("f_") || String(p.id).startsWith("b_") || String(p.id).startsWith("m_") || String(p.id).startsWith("c_") || String(p.id).startsWith("s_") || String(p.id).startsWith("ch_");
                                         return (
                                           <div
                                             key={p.id}
-                                            className={`flex-shrink-0 min-w-[160px] p-3 bg-gray-50 rounded shadow-sm flex flex-col items-center ${isDemo ? "opacity-95" : ""}`}
+                                            className={`flex-shrink-0 min-w-[160px] p-3 bg-gray-50 rounded shadow-sm flex flex-col items-center`}
                                           >
-                                            <img src={p.image || p.image_url || "/images/placeholder.png"} alt={p.name} className="h-20 object-contain mb-2" />
+                                            <img src={resolveImageUrl(p.image || p.image_url)} alt={p.name} className="h-20 object-contain mb-2" />
                                             <div className="text-xs font-semibold text-gray-800 text-center">{p.name}</div>
                                             <div className="text-[11px] text-gray-700 text-center">
                                               {p.brand && <span className="mr-1 text-[10px] text-gray-500">{p.brand}</span>}
@@ -859,7 +968,6 @@ export default function Dashboard() {
                 )}
               </div>
 
-              {/* Billing history */}
               <div className="bg-white rounded-2xl shadow p-4 relative">
                 <div className="flex items-center flex-wrap justify-between mb-2">
                   <div className="flex items-center gap-2">
@@ -867,7 +975,10 @@ export default function Dashboard() {
                     <h3 className="text-base font-semibold text-blue-900">Billing History</h3>
                   </div>
                   <div className="flex items-center gap-2">
-                    <span className="text-xs text-gray-800 font-semibold">Today</span>
+                    {/* show label for the most recent group */}
+                    <span className="text-xs text-gray-800 font-semibold">
+                      {Object.keys(groupedOrders).length ? formatGroupLabel(Object.keys(groupedOrders).sort((a,b)=> b.localeCompare(a))[0]) : ""}
+                    </span>
                   </div>
                 </div>
 
@@ -876,7 +987,7 @@ export default function Dashboard() {
                     aria-label="billing-up"
                     onClick={() => scrollBilling("up")}
                     disabled={!canScrollUpBill}
-                    className={`absolute right-8 top-4 z-40 p-2 rounded-full bg-white border text-blue-700 shadow ${canScrollUpBill ? "" : "opacity-40 cursor-not-allowed"}`}
+                    className={`absolute right-1 top-4 z-40 p-2 rounded-full bg-white border text-blue-700 shadow ${canScrollUpBill ? "" : "opacity-40 cursor-not-allowed"}`}
                   >
                     <FaChevronUp />
                   </button>
@@ -888,25 +999,83 @@ export default function Dashboard() {
                   >
                     {loading ? (
                       <div className="text-xs text-gray-700">Loading orders...</div>
-                    ) : recentOrders.length === 0 ? (
+                    ) : Object.keys(groupedOrders).length === 0 ? (
                       <div className="text-xs text-gray-700">No recent orders</div>
                     ) : (
-                      recentOrders.map((o) => (
-                        <div key={o.id} className="flex items-center justify-between rounded p-3 border bg-gray-100">
-                          <div className="flex items-center gap-2">
-                            <img src="/images/user-placeholder.png" className="h-8 w-8 rounded-full border" alt="user" />
-                            <div>
-                              <div className="text-sm font-semibold text-blue-800">{o.customerName || `#${o.id}`}</div>
-                              <div className="text-xs text-gray-700">#{o.id}</div>
-                            </div>
+                      // render groups sorted newest date first
+                      Object.keys(groupedOrders)
+                        .sort((a, b) => b.localeCompare(a))
+                        .map((dateKey) => (
+                          <div key={dateKey} className="space-y-2">
+                            <div className="text-xs text-gray-600 font-semibold px-2">{formatGroupLabel(dateKey)}</div>
+
+                            {groupedOrders[dateKey].map((o) => {
+                              const key = String(o.id);
+                              const expanded = !!expandedOrders[key];
+                              const details = expandedOrders[key];
+
+                              return (
+                                <div key={o.id} className="space-y-2">
+                                  <div className="flex items-center justify-between rounded p-3 border bg-gray-100">
+                                    <div className="flex items-center gap-2">
+                                      <div>
+                                        <div className="text-sm font-semibold text-blue-800">{o.customerName || `#${o.id}`}</div>
+                                      </div>
+                                    </div>
+
+                                    <div>
+                                      <div className="text-xs font-semibold text-gray-700">Items: {o.totalItems ?? 0}</div>
+                                      <div className="text-xs font-semibold text-blue-800">Rs. {o.totalAmount ?? 0}</div>
+                                    </div>
+
+                                    <button
+                                      onClick={() => toggleOrderDetails(o.id)}
+                                      className="px-3 py-1 text-xs rounded text-blue-500 bg-white border"
+                                      aria-expanded={expanded}
+                                      title={expanded ? "Collapse order details" : "Expand order details"}
+                                    >
+                                      {expanded ? "▲" : "▼"}
+                                    </button>
+                                  </div>
+
+                                  {/* Expanded content: show items when order is expanded */}
+                                  {expanded && details && (
+                                    <div className="px-3">
+                                      {Array.isArray(details.items) && details.items.length > 0 ? (
+                                        <div className="space-y-2 text-xs text-gray-700">
+                                          {details.items.map((it: any, idx: number) => {
+                                            const qty = Number(it.quantity ?? it.qty ?? 1);
+                                            const unit = Number(it.unit_price ?? it.price ?? it.unitPrice ?? it.rate ?? 0);
+                                            const name = it.productName || it.name || it.product?.name || String(it.product_id ?? it.product?.id ?? `Item ${idx + 1}`);
+                                            return (
+                                              <div key={idx} className="flex justify-between items-center bg-white p-2 rounded border">
+                                                <div className="truncate w-2/3 text-sm">{name}</div>
+                                                <div className="text-right w-1/3">
+                                                  <div className="text-[12px] text-gray-600">{qty} × Rs. {unit}</div>
+                                                  <div className="text-sm font-semibold text-blue-800">Rs. {qty * unit}</div>
+                                                </div>
+                                              </div>
+                                            );
+                                          })}
+                                          <div className="flex justify-between pt-2 border-t text-xs font-semibold">
+                                            <div>Total items</div>
+                                            <div>{details.totalItems ?? details.items.reduce((s: number, it: any) => s + (Number(it.quantity ?? it.qty ?? 1) || 0), 0)}</div>
+                                          </div>
+                                          <div className="flex justify-between text-xs font-semibold">
+                                            <div>Total amount</div>
+                                            <div>Rs. {details.totalAmount ?? details.items.reduce((s: number, it: any) => s + ((Number(it.unit_price ?? it.price ?? 0) || 0) * (Number(it.quantity ?? it.qty ?? 1) || 0)), 0)}</div>
+                                          </div>
+                                        </div>
+                                      ) : (
+                                        <div className="text-xs text-gray-500 p-2">No items available for this order</div>
+                                      )}
+                                    </div>
+                                  )}
+                                </div>
+                              );
+                            })}
                           </div>
-                          <div>
-                            <div className="text-xs font-semibold text-gray-700">Items: {o.totalItems ?? 0}</div>
-                            <div className="text-xs font-semibold text-blue-800">Rs. {o.totalAmount ?? 0}</div>
-                          </div>
-                          <button className="px-2 py-1 text-xs rounded text-blue-500">▼</button>
-                        </div>
-                      ))
+                        ))
                     )}
                   </div>
 
@@ -914,15 +1083,15 @@ export default function Dashboard() {
                     aria-label="billing-down"
                     onClick={() => scrollBilling("down")}
                     disabled={!canScrollDownBill}
-                    className={`absolute right-8 bottom-4 z-20 p-2 rounded-full bg-white border text-blue-700 shadow ${canScrollDownBill ? "" : "opacity-40 cursor-not-allowed"}`}
+                    className={`absolute right-1 bottom-4 z-20 p-2 rounded-full bg-white border text-blue-700 shadow ${canScrollDownBill ? "" : "opacity-40 cursor-not-allowed"}`}
                   >
                     <FaChevronDown />
                   </button>
                 </div>
               </div>
+
             </section>
 
-            {/* Cart / actions column */}
             <aside className="lg:col-span-4 flex flex-col gap-6">
               <div className="bg-white rounded-2xl shadow-xl p-4 flex flex-col">
                 <div className="flex items-center justify-between mb-3">
@@ -946,8 +1115,9 @@ export default function Dashboard() {
 
                 <div
                   ref={cartRef}
-                  className={` ${cart.length > 2 ? "no-scrollbar overflow-y-auto" : "overflow-visible"} `}
-                  style={{ maxHeight: cart.length > 2 ? 300 : "auto", transition: "max-height 200ms ease" }}
+                  // show native scrollbar when more than 3 items; hide scrollbar for 3 or fewer
+                  className={`${cart.length >= 3 ? "overflow-y-auto" : "overflow-visible no-scrollbar"}`}
+                  style={{ maxHeight: cart.length >= 3 ? 300 : "auto", transition: "max-height 200ms ease" }}
                 >
                   {cart.length === 0 ? (
                     <div className="text-sm text-gray-700">Cart is empty</div>
@@ -955,7 +1125,7 @@ export default function Dashboard() {
                     cart.map((it) => (
                       <div key={it.product.id} className="flex items-center gap-3 py-1">
                         <img
-                          src={it.product.image || it.product.image_url || "/images/placeholder.png"}
+                          src={resolveImageUrl(it.product.image || it.product.image_url)}
                           alt={it.product.name}
                           className="h-8 w-8 rounded border bg-gray-200"
                         />
@@ -996,11 +1166,11 @@ export default function Dashboard() {
 
                 <div className="flex gap-2 mt-3">
                   <button onClick={() => handleCheckout("CASH")} className="flex-1 px-3 py-2 text-sm bg-blue-600 text-white font-semibold rounded">CASH</button>
-                  <button onClick={() => handleCheckout("CARD")} className="px-3 py-2 text-sm bg-white border text-blue-600 font-semibold rounded">CARD</button>
-                  <button onClick={() => handleCheckout("LOYALTY")} className="px-3 py-2 text-sm bg-blue-500 text-white font-semibold rounded">LOYALTY</button>
+                  <button onClick={() => handleCheckout("CARD")} className="px-3 py-2 text-sm bg-blue-600 text-white font-semibold rounded">CARD</button>
+                  <button onClick={() => handleCheckout("LOYALTY")} className="px-3 py-2 text-sm bg-blue-600 text-white font-semibold rounded">LOYALTY</button>
                 </div>
 
-                <button className="mt-2 w-full px-3 py-2 text-sm bg-blue-400 text-white font-semibold rounded">DIGITAL WALLET</button>
+                <button className="mt-2 w-full px-3 py-2 text-sm bg-blue-600 text-white font-semibold rounded">DIGITAL WALLET</button>
 
                 <div className="mt-3 flex gap-4 justify-center items-center">
                   <button title="Print" className="p-3 bg-blue-50 border rounded-full text-blue-700 hover:bg-blue-100 hover:scale-105 transition">
@@ -1033,9 +1203,10 @@ export default function Dashboard() {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
           <div className="w-full max-w-md">
             <CreateBill
-              onBillCreated={() => {
+              onBillCreated={async () => {
                 setShowCreateBill(false);
                 setCart([]);
+                await refreshOrders();
               }}
             />
             <div className="mt-2 text-right">

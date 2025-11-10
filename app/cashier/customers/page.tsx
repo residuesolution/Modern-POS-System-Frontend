@@ -3,7 +3,6 @@ import React, { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { fetchCurrentUser } from '@/services/authService';
 import TopNavBar from '@/components/TopNavBar';
-import Sidebar from "@/components/CashierSidebar";
 
 type CustomerApi = {
   id?: number;
@@ -148,7 +147,6 @@ export default function CustomersPage() {
 
   return (
     <div className="flex bg-blue-400 min-h-screen">
-      <Sidebar active="customers" />
       <div className="flex-1 flex flex-col items-center">
         <TopNavBar user={user || { name: "Cashier", role: "Cashier" }} onSearch={setSearchTerm} />
         <main className="flex-1 w-full flex justify-center items-start pt-20">

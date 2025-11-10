@@ -1,7 +1,6 @@
 "use client";
 import React, { useEffect, useState, ChangeEvent, FormEvent } from "react";
 import { useRouter, useParams } from "next/navigation";
-import Sidebar from "@/components/Sidebar";
 import { fetchCurrentUser } from "@/services/authService";
 
 interface Product {
@@ -33,7 +32,18 @@ const EditProductPage = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
-  const [formData, setFormData] = useState<any>({});
+  const [formData, setFormData] = useState<any>({
+    name: "",
+    category_id: "",
+    sku: "",
+    price: "",
+    cost_price: "",
+    stock: "",
+    low_stock_alert_threshold: "",
+    image_url: "",
+    status: false,
+    image_file: undefined,
+  });
 
   useEffect(() => {
     async function fetchData() {
@@ -64,15 +74,17 @@ const EditProductPage = () => {
         const data = await res.json();
         setProduct(data);
         setFormData({
-          name: data.name,
-          category_id: data.category_id,
-          sku: data.sku,
-          price: data.price,
-          cost_price: data.cost_price,
-          stock: data.stock,
-          low_stock_alert_threshold: data.low_stock_alert_threshold,
-          image_url: data.image_url,
-          status: data.status,
+          name: data.name ?? "",
+          // store category as string for controlled select; ensure not null
+          category_id: data.category_id != null ? String(data.category_id) : "",
+          sku: data.sku ?? "",
+          // store numbers as strings to avoid controlled/uncontrolled issues
+          price: data.price != null ? String(data.price) : "",
+          cost_price: data.cost_price != null ? String(data.cost_price) : "",
+          stock: data.stock != null ? String(data.stock) : "",
+          low_stock_alert_threshold: data.low_stock_alert_threshold != null ? String(data.low_stock_alert_threshold) : "",
+          image_url: data.image_url ?? "",
+          status: !!data.status,
           image_file: undefined,
         });
       } catch (err: any) {
@@ -87,20 +99,21 @@ const EditProductPage = () => {
   const handleChange = (e: ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value, type } = e.target;
     const checked = (e.target as HTMLInputElement).checked;
-    setFormData({
-      ...formData,
+    // For number inputs we keep the raw string so controlled inputs never get null
+    setFormData((prev: any) => ({
+      ...prev,
       [name]: type === "checkbox" ? checked : value,
-    });
+    }));
   };
 
   const handleFileChange = (e: ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      setFormData({
-        ...formData,
+      setFormData((prev: any) => ({
+        ...prev,
         image_file: file,
         image_url: URL.createObjectURL(file),
-      });
+      }));
     }
   };
 
@@ -111,13 +124,18 @@ const EditProductPage = () => {
     setSuccess("");
     try {
       const formDataToSend = new FormData();
-      formDataToSend.append("name", formData.name);
-      formDataToSend.append("category_id", formData.category_id);
-      formDataToSend.append("sku", formData.sku);
-      formDataToSend.append("price", formData.price);
-      formDataToSend.append("cost_price", formData.cost_price);
-      formDataToSend.append("stock", formData.stock);
-      formDataToSend.append("low_stock_alert_threshold", formData.low_stock_alert_threshold);
+      formDataToSend.append("name", formData.name ?? "");
+      // Convert category id to empty string or numeric string
+      formDataToSend.append("category_id", formData.category_id ?? "");
+      formDataToSend.append("sku", formData.sku ?? "");
+      // Convert numeric string fields to proper string values for FormData
+      formDataToSend.append("price", formData.price != null ? String(formData.price) : "");
+      formDataToSend.append("cost_price", formData.cost_price != null ? String(formData.cost_price) : "");
+      formDataToSend.append("stock", formData.stock != null ? String(formData.stock) : "");
+      formDataToSend.append(
+        "low_stock_alert_threshold",
+        formData.low_stock_alert_threshold != null ? String(formData.low_stock_alert_threshold) : ""
+      );
       formDataToSend.append("status", formData.status ? "1" : "0");
       if (formData.image_file) {
         formDataToSend.append("image", formData.image_file);
@@ -152,7 +170,6 @@ const EditProductPage = () => {
 
   return (
     <div className="flex max-h-screen bg-gray-150">
-      <Sidebar active="product-view" />
       
       {/* Main Content */}
       <main className="flex-1 ml">
@@ -238,7 +255,7 @@ const EditProductPage = () => {
                         <input
                           type="text"
                           name="name"
-                          value={formData.name}
+                          value={formData.name ?? ""}
                           onChange={handleChange}
                           required
                           className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
@@ -251,7 +268,7 @@ const EditProductPage = () => {
                         </label>
                         <select
                           name="category_id"
-                          value={formData.category_id}
+                          value={formData.category_id ?? ""}
                           onChange={handleChange}
                           required
                           className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
@@ -270,7 +287,7 @@ const EditProductPage = () => {
                         <input
                           type="text"
                           name="sku"
-                          value={formData.sku}
+                          value={formData.sku ?? ""}
                           onChange={handleChange}
                           required
                           className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
@@ -285,7 +302,7 @@ const EditProductPage = () => {
                           <input
                             type="number"
                             name="price"
-                            value={formData.price}
+                            value={formData.price ?? ""}
                             onChange={handleChange}
                             min="0"
                             required
@@ -299,7 +316,7 @@ const EditProductPage = () => {
                           <input
                             type="number"
                             name="cost_price"
-                            value={formData.cost_price}
+                            value={formData.cost_price ?? ""}
                             onChange={handleChange}
                             min="0"
                             required
@@ -316,7 +333,7 @@ const EditProductPage = () => {
                           <input
                             type="number"
                             name="stock"
-                            value={formData.stock}
+                            value={formData.stock ?? ""}
                             onChange={handleChange}
                             min="0"
                             required
@@ -330,7 +347,7 @@ const EditProductPage = () => {
                           <input
                             type="number"
                             name="low_stock_alert_threshold"
-                            value={formData.low_stock_alert_threshold}
+                            value={formData.low_stock_alert_threshold ?? ""}
                             onChange={handleChange}
                             min="0"
                             required
@@ -382,7 +399,7 @@ const EditProductPage = () => {
                           type="checkbox"
                           name="status"
                           id="status"
-                          checked={formData.status}
+                          checked={!!formData.status}
                           onChange={handleChange}
                           className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
                         />

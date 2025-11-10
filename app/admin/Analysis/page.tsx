@@ -31,7 +31,6 @@ import {
   LineChart,
   Line,
 } from 'recharts';
-import Sidebar from '@/components/ui/Sidebar';
 import Header from '@/components/ui/Header';
 
 const salesTrendsData = [
@@ -64,11 +63,7 @@ export default function AnalysisPage() {
 
   return (
     <div className="min-h-screen bg-slate-50 flex">
-      {/* Fixed Sidebar */}
-      <Sidebar 
-        isOpen={isSidebarOpen} 
-        onToggle={() => setIsSidebarOpen(!isSidebarOpen)} 
-      />
+      
 
       {/* Main Content - Adjusted for fixed sidebar */}
       <div className="flex-1 flex flex-col lg:ml-72">

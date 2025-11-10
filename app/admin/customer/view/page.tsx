@@ -3,7 +3,6 @@ import React, { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { fetchCurrentUser } from '@/services/authService';
 import TopNavBar from '@/components/TopNavBar';
-import Sidebar from "@/components/Sidebar";
 import {
   BarChart,
   Bar,
@@ -165,7 +164,6 @@ export default function CustomersPage() {
 
   return (
     <div className="flex bg-100 min-h-screen">
-      <Sidebar active="customers" />
       <div className="flex-1 flex flex-col items-center">
         <TopNavBar user={user || { name: "Admin", role: "ADMIN" }} onSearch={setSearchTerm} />
         <main className="flex-1 w-full flex flex-col justify-start items-center pt-20">
