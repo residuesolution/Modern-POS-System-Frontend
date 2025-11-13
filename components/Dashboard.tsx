@@ -1,4 +1,3 @@
-// ...existing code...
 "use client";
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import Sidebar from "./Sidebar";
@@ -10,20 +9,26 @@ import {
   FaTrashAlt,
   FaReceipt,
   FaShoppingBasket,
-  FaChevronLeft,
-  FaChevronRight,
   FaChevronUp,
   FaChevronDown,
 } from "react-icons/fa";
 import { IoChatbubbleEllipsesOutline } from "react-icons/io5";
-import { fetchCurrentUser, fetchNotifications, createBill, emailOrderReceipt, smsOrderReceipt, printOrderReceipt, holdOrder, voidOrder } from "../services/authService";
+import {
+  fetchCurrentUser,
+  fetchNotifications,
+  createBill,
+  emailOrderReceipt,
+  smsOrderReceipt,
+  printOrderReceipt,
+  holdOrder,
+  voidOrder,
+} from "../services/authService";
 
 type Product = {
   id: number | string;
   name: string;
   price: number;
   category?: string;
-  subcategory?: string;
   brand?: string;
   image?: string;
   image_url?: string;
@@ -72,28 +77,11 @@ export default function Dashboard() {
   const [user, setUser] = useState<any>(null);
   const [products, setProducts] = useState<Product[]>([]);
 
-  // Allowed categories (per your request). Use names that match Add Product select.
+  // Allowed fallback categories
   const ALLOWED_CATEGORIES = ["Electronics", "Clothing", "Books", "Food"];
 
-  // categoriesFromApi will contain only allowed categories (or fallback to ALLOWED_CATEGORIES)
   const [categoriesFromApi, setCategoriesFromApi] = useState<string[]>(ALLOWED_CATEGORIES.slice());
-  const categoryChips = ["All products", ...ALLOWED_CATEGORIES];
   const [selectedCategory, setSelectedCategory] = useState<string>("All products");
-
-  // simple id->name map for categories from backend (used when product has category_id)
-  const [categoriesMap, setCategoriesMap] = useState<Record<string | number, string>>({});
-
-  const [selectedSubcategory, setSelectedSubcategory] = useState<string>("All");
-  const [openSubcats, setOpenSubcats] = useState<Record<string, boolean>>({});
-
-  const subcategoryMap: Record<string, string[]> = {
-    "Dairy & Eggs": ["Milk & Cream", "Cheese", "Butter & Spreads", "Eggs", "Chocolates"],
-    Vegetables: ["Leafy", "Root", "Stems", "Mixed Veg"],
-    Fruits: ["Citrus", "Berries", "Tropical"],
-    Bakery: ["Bread", "Pastries", "Cakes"],
-    "Meat & Seafood": ["Beef", "Poultry", "Seafood"],
-  };
-
   const [selectedBrand, setSelectedBrand] = useState<string>("All Brands");
   const [sortBy, setSortBy] = useState<string>("none");
 
@@ -108,22 +96,17 @@ export default function Dashboard() {
   const billingRef = useRef<HTMLDivElement | null>(null);
   const cartRef = useRef<HTMLDivElement | null>(null);
 
-  const subcatRefs = useRef<Record<string, HTMLDivElement | null>>({});
-  const [subcatScrollState, setSubcatScrollState] = useState<Record<string, { left: boolean; right: boolean }>>({});
-
-  const [canScrollLeft, setCanScrollLeft] = useState(false);
-  const [canScrollRight, setCanScrollRight] = useState(false);
-  const [canScrollUpBill, setCanScrollUpBill] = useState(false);
-  const [canScrollDownBill, setCanScrollDownBill] = useState(false);
-
-  const prevVisibleCount = useRef<number>(0);
-  const prevCartCount = useRef<number>(0);
-
   const [autoScrollPaused, setAutoScrollPaused] = useState(false);
   const userInteractTimeout = useRef<number | null>(null);
 
   const [scrollDirection, setScrollDirection] = useState<"left" | "right">("left");
   const [pxPerFrame, setPxPerFrame] = useState<number>(1.8);
+
+  const prevVisibleCount = useRef<number>(0);
+  const prevCartCount = useRef<number>(0);
+
+  // dynamic chips include All products + categories from backend
+  const categoryChips = useMemo(() => ["All products", ...categoriesFromApi], [categoriesFromApi]);
 
   async function handlePrintLatest() {
     const last = recentOrders[0];
@@ -170,7 +153,6 @@ export default function Dashboard() {
     try {
       await holdOrder(Number(orderId));
       alert("Order held");
-      // optional: refresh orders
       await refreshOrders();
     } catch (e) { console.error(e); alert("Failed to hold"); }
   }
@@ -204,22 +186,41 @@ export default function Dashboard() {
       setLoading(true);
       const oResp = await fetchWithToken("/api/orders").catch(() => null);
       const ordersList: any[] = oResp?.data || oResp || [];
-      const mappedOrders: OrderSummary[] = ordersList?.length
-        ? ordersList.slice().reverse().slice(0, 20).map((o: any) => {
-            const itemsArr = o.items || o.order_items || [];
-            const totalItems = o.totalItems ?? o.total_items ?? (Array.isArray(itemsArr) ? itemsArr.reduce((s: number, it: any) => s + (Number(it.quantity ?? it.qty ?? 1) || 0), 0) : 0);
-            const totalAmount = o.totalAmount ?? o.total_amount ?? (Array.isArray(itemsArr) ? itemsArr.reduce((s: number, it: any) => s + ((Number(it.unit_price ?? it.price ?? it.unitPrice) || 0) * (Number(it.quantity ?? it.qty ?? 1) || 0)), 0) : 0);
-            return {
-              id: o.id ?? o.orderId,
-              customerName: o.customerName ?? (o.customer && o.customer.name) ?? `#${o.id}`,
-              totalItems,
-              totalAmount,
-              created_at: o.created_at ?? o.createdAt ?? new Date().toISOString(),
-            };
-          })
-        : [];
+
+      const selected = ordersList?.length ? ordersList.slice().reverse().slice(0, 20) : [];
+
+      const detailPromises = selected.map((o: any) =>
+        (o.items || o.order_items || o.total_amount || o.totalAmount)
+          ? Promise.resolve(o)
+          : fetchWithToken(`/api/orders/${o.id}`).catch(() => null)
+      );
+
+      const detailsResults = await Promise.allSettled(detailPromises);
+
+      const mappedOrders: OrderSummary[] = selected.map((orig: any, idx: number) => {
+        const dr = detailsResults[idx];
+        let orderObj: any = null;
+        if (dr.status === "fulfilled") {
+          orderObj = dr.value?.data || dr.value || orig;
+        } else {
+          orderObj = orig;
+        }
+
+        const itemsArr = orderObj.items || orderObj.order_items || orderObj.line_items || [];
+        const totalItems = orderObj.totalItems ?? orderObj.total_items ?? (Array.isArray(itemsArr) ? itemsArr.reduce((s: number, it: any) => s + (Number(it.quantity ?? it.qty ?? 1) || 0), 0) : 0);
+        const totalAmount = orderObj.totalAmount ?? orderObj.total_amount ?? (Array.isArray(itemsArr) ? itemsArr.reduce((s: number, it: any) => s + ((Number(it.unit_price ?? it.price ?? it.unitPrice) || 0) * (Number(it.quantity ?? it.qty ?? 1) || 0)), 0) : 0);
+
+        return {
+          id: orig.id ?? orig.orderId,
+          customerName: orig.customerName ?? (orig.customer && orig.customer.name) ?? `#${orig.id}`,
+          totalItems,
+          totalAmount,
+          created_at: orig.created_at ?? orig.createdAt ?? new Date().toISOString(),
+        };
+      });
+
       setRecentOrders(mappedOrders);
-      setExpandedOrders({}); // collapse any expanded views after refresh
+      setExpandedOrders({});
     } catch (e) {
       console.error("refreshOrders failed", e);
     } finally {
@@ -232,7 +233,7 @@ export default function Dashboard() {
     (async () => {
       setLoading(true);
       try {
-        // fetch categories first so we can map category_id -> name
+        // fetch categories
         let categoriesList: any[] = [];
         try {
           const cResp = await fetchWithToken("/api/category").catch(() => null);
@@ -248,107 +249,116 @@ export default function Dashboard() {
             catMap[id] = String(name).trim();
           }
         });
-        if (mounted) setCategoriesMap(catMap);
 
-        const pResp = await fetchWithToken("/api/product").catch(() => null);
-        const productsList: any[] = pResp?.data || pResp || [];
-        const nResp: any = await fetchNotifications().catch(() => null);
-        const notifs: any[] = (nResp?.data || nResp || []) as any[];
+        if (mounted) {
+          // products
+          const pResp = await fetchWithToken("/api/product").catch(() => null);
+          const productsList: any[] = pResp?.data || pResp || [];
+          const nResp: any = await fetchNotifications().catch(() => null);
+          const notifs: any[] = (nResp?.data || nResp || []) as any[];
 
-        if (!mounted) return;
+          if (!mounted) return;
 
-        const mappedProducts: Product[] = productsList?.length
-          ? productsList.map((p: any) => {
-              // preferred category name sources, fall back to mapping by category_id
-              const byId = (p.category_id != null && catMap[p.category_id]) ? catMap[p.category_id] : undefined;
-              const resolvedCategory = byId || p.categoryName || p.category || p.mainCategory || (p.category_id ? String(p.category_id) : "Uncategorized");
-              return {
-                id: p.id ?? p.productId ?? p.sku ?? Math.random().toString(36).slice(2, 9),
-                name: p.name ?? p.productName ?? "Unnamed",
-                price: typeof p.price === "number" ? p.price : Number(p.price) || 0,
-                category: String(resolvedCategory),
-                subcategory: p.subcategory || p.category_sub || p.subCategory || undefined,
-                brand: p.brand ?? p.manufacturer ?? p.brandName ?? undefined,
-                image: p.image ?? p.image_url ?? "",
-                image_url: p.image_url ?? p.image ?? "",
-                stock: typeof p.stock === "number" ? p.stock : Number(p.stock) || 0,
-                unit: p.unit ?? p.sku ?? "",
-                barcode: p.barcode ?? p.upc ?? undefined,
-                sku: p.sku ?? undefined,
-                description: p.description ?? undefined,
-              };
-            })
-          : [];
+          const mappedProducts: Product[] = productsList?.length
+            ? productsList.map((p: any) => {
+                const byId = (p.category_id != null && catMap[p.category_id]) ? catMap[p.category_id] : undefined;
+                const resolvedCategory = byId || p.categoryName || p.category || p.mainCategory || (p.category_id ? String(p.category_id) : "Uncategorized");
+                return {
+                  id: p.id ?? p.productId ?? p.sku ?? Math.random().toString(36).slice(2, 9),
+                  name: p.name ?? p.productName ?? "Unnamed",
+                  price: typeof p.price === "number" ? p.price : Number(p.price) || 0,
+                  category: String(resolvedCategory),
+                  brand: p.brand ?? p.manufacturer ?? p.brandName ?? undefined,
+                  image: p.image ?? p.image_url ?? "",
+                  image_url: p.image_url ?? p.image ?? "",
+                  stock: typeof p.stock === "number" ? p.stock : Number(p.stock) || 0,
+                  unit: p.unit ?? p.sku ?? "",
+                  barcode: p.barcode ?? p.upc ?? undefined,
+                  sku: p.sku ?? undefined,
+                  description: p.description ?? undefined,
+                };
+              })
+            : [];
 
-        setProducts(uniqueProducts(mappedProducts));
+          setProducts(uniqueProducts(mappedProducts));
 
-        // derive categoriesFromApi but restrict to allowed categories
-        const apiCats = Array.from(new Set(mappedProducts.map((p) => (p.category || "").trim()))).filter(Boolean);
-        const filtered = apiCats.filter((c) => ALLOWED_CATEGORIES.includes(c));
-        setCategoriesFromApi(filtered.length ? filtered : ALLOWED_CATEGORIES.slice());
+          // derive categoriesFromApi from products (ensures newly added product's category appears)
+          const apiCats = Array.from(new Set(mappedProducts.map((p) => (p.category || "").trim()))).filter(Boolean);
+          const filtered = apiCats.length ? apiCats : ALLOWED_CATEGORIES.slice();
+          setCategoriesFromApi(filtered);
 
-        setNotifications(Array.isArray(notifs) && notifs.length ? notifs : []);
+          setNotifications(Array.isArray(notifs) && notifs.length ? notifs : []);
+        }
       } catch (e) {
         // ignore simple load errors
       } finally {
         if (mounted) {
-          // fetch orders after initial resources are loaded
           await refreshOrders();
         }
       }
     })();
 
     function onStorage(e: StorageEvent) {
-      if (e.key === "product-added" && e.newValue) {
-        (async () => {
-          try {
-            // refresh categories + products using same mapping logic
-            let categoriesList: any[] = [];
+      // respond to product and order updates
+      try {
+        if (e.key === "order-created" && e.newValue) {
+          // an order was just created in another tab / modal -> refresh orders
+          (async () => {
+            try {
+              await refreshOrders();
+            } catch (err) {
+              console.error("refreshOrders (on order-created) failed", err);
+            }
+          })();
+          return;
+        }
+
+        if ((e.key === "product-added" || e.key === "product-updated") && e.newValue) {
+          (async () => {
             try {
               const cResp = await fetchWithToken("/api/category").catch(() => null);
-              categoriesList = cResp?.data || cResp || [];
-            } catch (err) {
-              categoriesList = [];
-            }
-            const catMap: Record<string | number, string> = {};
-            (categoriesList || []).forEach((c: any) => {
-              if (c && (c.id != null || c._id != null) && (c.name || c.category_name || c.title)) {
-                const id = c.id ?? c._id;
-                const name = c.name ?? c.category_name ?? c.title;
-                catMap[id] = String(name).trim();
-              }
-            });
-            setCategoriesMap(catMap);
+              const categoriesList = cResp?.data || cResp || [];
+              const catMap: Record<string | number, string> = {};
+              (categoriesList || []).forEach((c: any) => {
+                if (c && (c.id != null || c._id != null) && (c.name || c.category_name || c.title)) {
+                  const id = c.id ?? c._id;
+                  const name = c.name ?? c.category_name ?? c.title;
+                  catMap[id] = String(name).trim();
+                }
+              });
 
-            const pResp = await fetchWithToken("/api/product").catch(() => null);
-            const productsList: any[] = pResp?.data || pResp || [];
-            const mappedProducts: Product[] = productsList?.length
-              ? productsList.map((p: any) => {
-                  const byId = (p.category_id != null && catMap[p.category_id]) ? catMap[p.category_id] : undefined;
-                  const resolvedCategory = byId || p.categoryName || p.category || p.mainCategory || (p.category_id ? String(p.category_id) : "Uncategorized");
-                  return {
-                    id: p.id ?? p.productId ?? p.sku ?? Math.random().toString(36).slice(2, 9),
-                    name: p.name ?? p.productName ?? "Unnamed",
-                    price: typeof p.price === "number" ? p.price : Number(p.price) || 0,
-                    category: String(resolvedCategory),
-                    subcategory: p.subcategory || p.category_sub || p.subCategory || undefined,
-                    brand: p.brand ?? p.manufacturer ?? p.brandName ?? undefined,
-                    image: p.image ?? p.image_url ?? "",
-                    image_url: p.image_url ?? p.image ?? "",
-                    stock: typeof p.stock === "number" ? p.stock : Number(p.stock) || 0,
-                    unit: p.unit ?? p.sku ?? "",
-                    barcode: p.barcode ?? p.upc ?? undefined,
-                    sku: p.sku ?? undefined,
-                    description: p.description ?? undefined,
-                  };
-                })
-              : [];
-            setProducts(uniqueProducts(mappedProducts));
-            const apiCats = Array.from(new Set(mappedProducts.map((p) => (p.category || "").trim()))).filter(Boolean);
-            const filtered = apiCats.filter((c) => ALLOWED_CATEGORIES.includes(c));
-            setCategoriesFromApi(filtered.length ? filtered : ALLOWED_CATEGORIES.slice());
-          } catch {}
-        })();
+              const pResp = await fetchWithToken("/api/product").catch(() => null);
+              const productsList: any[] = pResp?.data || pResp || [];
+              const mappedProducts: Product[] = productsList?.length
+                ? productsList.map((p: any) => {
+                    const byId = (p.category_id != null && catMap[p.category_id]) ? catMap[p.category_id] : undefined;
+                    const resolvedCategory = byId || p.categoryName || p.category || p.mainCategory || (p.category_id ? String(p.category_id) : "Uncategorized");
+                    return {
+                      id: p.id ?? p.productId ?? p.sku ?? Math.random().toString(36).slice(2, 9),
+                      name: p.name ?? p.productName ?? "Unnamed",
+                      price: typeof p.price === "number" ? p.price : Number(p.price) || 0,
+                      category: String(resolvedCategory),
+                      brand: p.brand ?? p.manufacturer ?? p.brandName ?? undefined,
+                      image: p.image ?? p.image_url ?? "",
+                      image_url: p.image_url ?? p.image ?? "",
+                      stock: typeof p.stock === "number" ? p.stock : Number(p.stock) || 0,
+                      unit: p.unit ?? p.sku ?? "",
+                      barcode: p.barcode ?? p.upc ?? undefined,
+                      sku: p.sku ?? undefined,
+                      description: p.description ?? undefined,
+                    };
+                  })
+                : [];
+              setProducts(uniqueProducts(mappedProducts));
+              const apiCats = Array.from(new Set(mappedProducts.map((p: any) => (p.category || "").trim()))).filter(Boolean);
+              setCategoriesFromApi(apiCats.length ? apiCats : ALLOWED_CATEGORIES.slice());
+            } catch (err) {
+              console.error("onStorage product refresh failed", err);
+            }
+          })();
+        }
+      } catch (err) {
+        console.error("onStorage handler error", err);
       }
     }
     window.addEventListener("storage", onStorage);
@@ -357,18 +367,6 @@ export default function Dashboard() {
       window.removeEventListener("storage", onStorage);
     };
   }, []);
-
-  function categoryMatches(apiCat: string | undefined, chip: string | null) {
-    if (!chip || chip === "All products") return true;
-    const c = (apiCat || "").toLowerCase();
-    const s = chip.toLowerCase();
-    if (s.includes("dairy")) return c.includes("dairy") || c.includes("milk") || c.includes("cheese") || c.includes("egg") || c.includes("eggs");
-    if (s.includes("vegetable")) return c.includes("vegetable") || c.includes("vegetables") || c.includes("veg");
-    if (s.includes("fruit")) return c.includes("fruit") || c.includes("fruits");
-    if (s.includes("bakery") || s.includes("bread")) return c.includes("bakery") || c.includes("bread") || c.includes("pastry") || c.includes("cake");
-    if (s.includes("meat") || s.includes("seafood")) return c.includes("meat") || c.includes("seafood") || c.includes("chicken") || c.includes("fish") || c.includes("beef");
-    return c.includes(s);
-  }
 
   function uniqueProducts(items: Product[]) {
     const map = new Map<string, Product>();
@@ -386,31 +384,6 @@ export default function Dashboard() {
     return Array.from(map.values());
   }
 
-  function subcategoryMatches(product: Product, sub: string | null, currentCategory?: string) {
-    if (!sub || sub === "All") return true;
-    const s = (sub || "").toLowerCase();
-    const name = (product.name || "").toLowerCase();
-    const cat = (product.category || "").toLowerCase();
-    const subcat = (product.subcategory || "").toLowerCase();
-
-    if (subcat && subcat.includes(s)) return true;
-
-    if (currentCategory && categoryMatches(product.category, currentCategory)) {
-      if (s.includes("egg")) return name.includes("egg");
-      if (s.includes("milk") || s.includes("cream")) return name.includes("milk") || name.includes("cream");
-      if (s.includes("cheese")) return name.includes("cheese");
-      if (s.includes("butter") || s.includes("spread")) return name.includes("butter") || name.includes("spread");
-      if (s.includes("seafood") || s.includes("prawn") || s.includes("salmon") || s.includes("fish") || s.includes("shrimp")) {
-        return name.includes("prawn") || name.includes("prawns") || name.includes("salmon") || name.includes("fish") || name.includes("shrimp");
-      }
-      if (s.includes("chocolate") || s.includes("chocolates")) {
-        return name.includes("chocolate") || subcat.includes("chocolate") || subcat.includes("chocolates");
-      }
-      return name.includes(s) || cat.includes(s);
-    }
-    return false;
-  }
-
   const brands = useMemo(() => {
     const b = new Set<string>();
     products.forEach((p) => {
@@ -425,7 +398,7 @@ export default function Dashboard() {
     const categoryFiltered =
       selectedCategory === "All products"
         ? [...apiProducts]
-        : apiProducts.filter((p) => categoryMatches(p.category, selectedCategory));
+        : apiProducts.filter((p) => (p.category || "").toLowerCase().includes((selectedCategory || "").toLowerCase()));
 
     const brandFiltered =
       selectedBrand && selectedBrand !== "All Brands"
@@ -451,7 +424,7 @@ export default function Dashboard() {
 
   useEffect(() => {
     const el = productsRef.current;
-    if (!el || selectedCategory !== "All products" || visibleProducts.length <= 1) return;
+    if (!el || visibleProducts.length <= 1) return;
 
     const clearUserTimeout = () => {
       if (userInteractTimeout.current) {
@@ -509,7 +482,7 @@ export default function Dashboard() {
       el.removeEventListener("touchstart", onUserInteract);
       clearUserTimeout();
     };
-  }, [selectedCategory, visibleProducts, autoScrollPaused, scrollDirection, pxPerFrame]);
+  }, [visibleProducts, autoScrollPaused, scrollDirection, pxPerFrame]);
 
   useEffect(() => {
     const prev = prevCartCount.current;
@@ -545,7 +518,6 @@ export default function Dashboard() {
     return { subtotal, discount, tax, grand };
   }, [cart]);
 
-  // updated checkout uses refreshOrders
   async function handleCheckout(paymentMethod = "CASH") {
     if (cart.length === 0) {
       alert("Cart is empty");
@@ -553,26 +525,48 @@ export default function Dashboard() {
     }
     const order = {
       customer_id: null,
-      user_id: user?.id ?? null,
+      user_id: Number(user?.id ?? null),
       payment_method: paymentMethod,
-      total_amount: cartTotals.grand,
-      discount_amount: cartTotals.discount,
+      total_amount: Number(cartTotals.grand) || 0,
+      discount_amount: Number(cartTotals.discount) || 0,
       loyalty_points_used: 0,
       status: "completed",
     };
-    const items = cart.map((it) => ({ product_id: it.product.id, quantity: it.qty, unit_price: it.product.price }));
+    const items = cart.map((it) => ({
+      product_id: Number(it.product.id),
+      quantity: Number(it.qty),
+      unit_price: Number(it.product.price) || 0,
+    }));
     try {
       const res = await createBill({ order, items });
       setCart([]);
       alert("Checkout successful");
       try {
+        // notify other tabs/pages that products/orders changed
         localStorage.setItem("product-updated", Date.now().toString());
       } catch {}
-      // refresh orders using helper
       await refreshOrders();
     } catch (err) {
       console.error("checkout failed", err);
       alert("Checkout failed");
+    }
+  }
+
+  // NEW: save cart to sessionStorage and navigate to payment page
+  function navigateToPayment(method: "CASH" | "CARD" | "LOYALTY" | "WALLET") {
+    if (cart.length === 0) {
+      alert("Cart is empty");
+      return;
+    }
+    try {
+      const serializedCart = cart.map((it) => ({ product: it.product, qty: it.qty }));
+      sessionStorage.setItem("checkout_cart", JSON.stringify(serializedCart));
+      sessionStorage.setItem("checkout_meta", JSON.stringify({ user: user ?? null, totals: cartTotals }));
+    } catch (e) {
+      console.error("Failed to save checkout cart", e);
+    }
+    if (typeof window !== "undefined") {
+      window.location.href = `/payments/${method.toLowerCase()}`;
     }
   }
 
@@ -596,82 +590,23 @@ export default function Dashboard() {
     el.scrollBy({ top: delta, behavior: "smooth" });
   }
 
-  function updateSubcatNav(sub: string) {
-    const el = subcatRefs.current[sub];
-    if (!el) {
-      setSubcatScrollState((prev) => ({ ...prev, [sub]: { left: false, right: false } }));
-      return;
-    }
-    setSubcatScrollState((prev) => ({
-      ...prev,
-      [sub]: { left: el.scrollLeft > 10, right: el.scrollLeft + el.clientWidth + 10 < el.scrollWidth },
-    }));
-  }
-
-  const SUBCAT_STEP = 340;
-  function scrollSubcat(sub: string, direction: "left" | "right") {
-    const el = subcatRefs.current[sub];
-    if (!el) return;
-    const delta = direction === "left" ? -SUBCAT_STEP : SUBCAT_STEP;
-    el.scrollBy({ left: delta, behavior: "smooth" });
-  }
-
   useEffect(() => {
     function updateProductNav() {
       const el = productsRef.current;
       if (!el) return;
-      setCanScrollLeft(el.scrollLeft > 10);
-      setCanScrollRight(el.scrollLeft + el.clientWidth + 10 < el.scrollWidth);
+      // no left/right nav UI state needed here but keep function for resize binding if desired
     }
     function updateBillingNav() {
       const el = billingRef.current;
       if (!el) return;
-      setCanScrollUpBill(el.scrollTop > 10);
-      setCanScrollDownBill(el.scrollTop + el.clientHeight + 10 < el.scrollHeight);
     }
-    updateProductNav();
-    updateBillingNav();
-    const prod = productsRef.current;
-    const bill = billingRef.current;
-    prod?.addEventListener("scroll", updateProductNav);
-    bill?.addEventListener("scroll", updateBillingNav);
     window.addEventListener("resize", updateProductNav);
     window.addEventListener("resize", updateBillingNav);
     return () => {
-      prod?.removeEventListener("scroll", updateProductNav);
-      bill?.removeEventListener("scroll", updateBillingNav);
       window.removeEventListener("resize", updateProductNav);
       window.removeEventListener("resize", updateBillingNav);
     };
   }, [visibleProducts, recentOrders]);
-
-  useEffect(() => {
-    const subs = subcategoryMap[selectedCategory] || [];
-    const cleanupFns: Array<() => void> = [];
-    subs.forEach((sub) => {
-      const el = subcatRefs.current[sub];
-      if (!el) return;
-      const onScroll = () => updateSubcatNav(sub);
-      el.addEventListener("scroll", onScroll);
-      window.addEventListener("resize", onScroll);
-      updateSubcatNav(sub);
-      cleanupFns.push(() => {
-        el.removeEventListener("scroll", onScroll);
-        window.removeEventListener("resize", onScroll);
-      });
-    });
-    return () => cleanupFns.forEach((fn) => fn());
-  }, [selectedCategory, visibleProducts, openSubcats]);
-
-  function toggleSubcat(sub: string) {
-    setOpenSubcats((prev) => ({ ...prev, [sub]: !prev[sub] }));
-    setSelectedSubcategory(sub);
-  }
-
-  function productsForSubcategory(sub: string): Product[] {
-    if (!sub || sub === "All") return visibleProducts;
-    return visibleProducts.filter((p) => subcategoryMatches(p, sub, selectedCategory));
-  }
 
   // Toggle order details: fetch on demand and update recentOrders summary
   async function toggleOrderDetails(id?: number | string) {
@@ -703,6 +638,7 @@ export default function Dashboard() {
       setRecentOrders((prev) => prev.map((o) => (String(o.id) === key ? { ...o, totalItems, totalAmount } : o)));
     } catch (err) {
       console.error("Failed to load order details", err);
+      setExpandedOrders((prev) => ({ ...prev, [key]: { items: [] } }));
     }
   }
 
@@ -710,13 +646,16 @@ export default function Dashboard() {
     const groups: Record<string, OrderSummary[]> = {};
     (recentOrders || []).forEach((o) => {
       const d = o?.created_at ? new Date(o.created_at) : new Date();
-      const key = d.toISOString().slice(0, 10); // YYYY-MM-DD
+      const key = d.toISOString().slice(0, 10);
       groups[key] = groups[key] || [];
       groups[key].push(o);
     });
-    // sort groups' orders newest first
     Object.keys(groups).forEach((k) => {
-      groups[k].sort((a, b) => (new Date(b.created_at).getTime() - new Date(a.created_at).getTime()));
+      groups[k].sort((a, b) => {
+        const tb = new Date(b.created_at ?? 0).getTime();
+        const ta = new Date(a.created_at ?? 0).getTime();
+        return tb - ta;
+      });
     });
     return groups;
   }, [recentOrders]);
@@ -728,8 +667,9 @@ export default function Dashboard() {
     const diffDays = Math.round((today.getTime() - d.getTime()) / msPerDay);
     if (diffDays === 0) return "Today";
     if (diffDays === 1) return "Yesterday";
-    return d.toLocaleDateString(undefined, { weekday: "short", day: "numeric", month: "short" }); // e.g. "Mon, 10 Nov"
+    return d.toLocaleDateString(undefined, { weekday: "short", day: "numeric", month: "short" });
   }
+
   return (
     <div className="min-h-screen flex bg-gradient-to-br from-blue-200 via-blue-400 to-blue-700">
       <style>{`
@@ -780,8 +720,6 @@ export default function Dashboard() {
                       key={c}
                       onClick={() => {
                         setSelectedCategory(c);
-                        setSelectedSubcategory("All");
-                        setOpenSubcats({});
                         setSelectedBrand("All Brands");
                         setSortBy("none");
                       }}
@@ -792,180 +730,78 @@ export default function Dashboard() {
                   ))}
                 </div>
 
-                {selectedCategory === "All products" ? (
-                  <div className="bg-gray-50 rounded-lg mt-2 relative">
-                    <div className="pt-3 px-3">
-                      <div className="relative">
-                        <div className="absolute right-3 top-3 z-30 flex gap-2 items-center">
-                          <button
-                            title="Move left (items travel right → left)"
-                            onClick={() => setScrollDirection("left")}
-                            className={`px-2 py-1 text-xs rounded ${scrollDirection === "left" ? "bg-blue-600 text-white" : "bg-white border text-blue-700"}`}
-                          >
-                            ←
-                          </button>
-                          <button
-                            title="Move right (items travel left → right)"
-                            onClick={() => setScrollDirection("right")}
-                            className={`px-2 py-1 text-xs rounded ${scrollDirection === "right" ? "bg-blue-600 text-white" : "bg-white border text-blue-700"}`}
-                          >
-                            →
-                          </button>
-                        </div>
-
-                        <div
-                          ref={productsRef}
-                          className="no-scrollbar overflow-x-auto px-1 py-2"
-                          style={{ scrollBehavior: "auto", paddingLeft: 56, paddingRight: 56 }}
+                <div className="bg-gray-50 rounded-lg mt-2 relative">
+                  <div className="pt-3 px-3">
+                    <div className="relative">
+                      <div className="absolute right-3 top-3 z-30 flex gap-2 items-center">
+                        <button
+                          title="Move left (items travel right → left)"
+                          onClick={() => setScrollDirection("left")}
+                          className={`px-2 py-1 text-xs rounded ${scrollDirection === "left" ? "bg-blue-600 text-white" : "bg-white border text-blue-700"}`}
                         >
-                          <div className="flex gap-3 items-start flex-nowrap whitespace-nowrap">
-                            {visibleProducts.length === 0 ? (
-                              <div className="text-sm text-gray-700 p-4">No products available</div>
-                            ) : (
-                              visibleProducts.map((p) => {
-                                const qty = qtyInCart(p.id);
-                                return (
-                                  <div
-                                    key={String(p.id)}
-                                    className={`flex-shrink-0 min-w-[160px] p-3 bg-white rounded shadow-sm flex flex-col items-center`}
-                                  >
-                                    <img src={resolveImageUrl(p.image || p.image_url)} alt={p.name} className="h-20 object-contain mb-2" />
-                                    <div className="text-xs font-semibold text-gray-800 text-center">{p.name}</div>
-                                    <div className="text-[11px] text-gray-700 text-center">
-                                      {p.brand && <span className="mr-1 text-[10px] text-gray-500">{p.brand}</span>}
-                                      {p.subcategory && <span className="mx-1">• {p.subcategory}</span>}
-                                      {p.unit && <span className="ml-1">{p.unit}</span>}
-                                    </div>
-                                    <div className="text-blue-800 font-semibold text-xs mt-2">Rs. {p.price}</div>
+                          ←
+                        </button>
+                        <button
+                          title="Move right (items travel left → right)"
+                          onClick={() => setScrollDirection("right")}
+                          className={`px-2 py-1 text-xs rounded ${scrollDirection === "right" ? "bg-blue-600 text-white" : "bg-white border text-blue-700"}`}
+                        >
+                          →
+                        </button>
+                      </div>
 
-                                    <div className="mt-3 flex items-center gap-2">
-                                      <button
-                                        onClick={() => {
-                                          if (qty > 0) updateQty(p.id, qty - 1);
-                                        }}
-                                        className="px-2 py-1 bg-gray-100 rounded text-xs text-blue-800"
-                                        aria-label={`decrease-${p.id}`}
-                                      >
-                                        -
-                                      </button>
-                                      <span className="px-2 text-xs font-semibold">{qty}</span>
-                                      <button
-                                        onClick={() => addToCart(p, 1)}
-                                        className="px-2 py-1 bg-blue-600 text-white rounded text-xs"
-                                        aria-label={`increase-${p.id}`}
-                                      >
-                                        +
-                                      </button>
-                                    </div>
+                      <div
+                        ref={productsRef}
+                        className="no-scrollbar overflow-x-auto px-1 py-2"
+                        style={{ scrollBehavior: "auto", paddingLeft: 56, paddingRight: 56 }}
+                      >
+                        <div className="flex gap-3 items-start flex-nowrap whitespace-nowrap">
+                          {visibleProducts.length === 0 ? (
+                            <div className="text-sm text-gray-700 p-4">No products available</div>
+                          ) : (
+                            visibleProducts.map((p) => {
+                              const qty = qtyInCart(p.id);
+                              return (
+                                <div
+                                  key={String(p.id)}
+                                  className={`flex-shrink-0 min-w-[160px] p-3 bg-white rounded shadow-sm flex flex-col items-center`}
+                                >
+                                  <img src={resolveImageUrl(p.image || p.image_url)} alt={p.name} className="h-20 object-contain mb-2" />
+                                  <div className="text-xs font-semibold text-gray-800 text-center">{p.name}</div>
+                                  <div className="text-[11px] text-gray-700 text-center">
+                                    {p.brand && <span className="mr-1 text-[10px] text-gray-500">{p.brand}</span>}
+                                    {p.unit && <span className="ml-1">{p.unit}</span>}
                                   </div>
-                                );
-                              })
-                            )}
-                          </div>
+                                  <div className="text-blue-800 font-semibold text-xs mt-2">Rs. {p.price}</div>
+
+                                  <div className="mt-3 flex items-center gap-2">
+                                    <button
+                                      onClick={() => {
+                                        if (qty > 0) updateQty(p.id, qty - 1);
+                                      }}
+                                      className="px-2 py-1 bg-gray-100 rounded text-xs text-blue-800"
+                                      aria-label={`decrease-${p.id}`}
+                                    >
+                                      -
+                                    </button>
+                                    <span className="px-2 text-xs font-semibold">{qty}</span>
+                                    <button
+                                      onClick={() => addToCart(p, 1)}
+                                      className="px-2 py-1 bg-blue-600 text-white rounded text-xs"
+                                      aria-label={`increase-${p.id}`}
+                                    >
+                                      +
+                                    </button>
+                                  </div>
+                                </div>
+                              );
+                            })
+                          )}
                         </div>
                       </div>
                     </div>
                   </div>
-                ) : (
-                  <div className="space-y-2 mt-2">
-                    {(subcategoryMap[selectedCategory] || []).map((sub) => {
-                      const items = productsForSubcategory(sub);
-                      const isOpen = !!openSubcats[sub];
-                      return (
-                        <div key={sub} className="rounded-lg border bg-white overflow-hidden">
-                          <div className="flex items-center justify-between px-3 py-2">
-                            <div className="text-sm font-semibold text-blue-800">{sub}</div>
-                            <div className="flex items-center gap-2">
-                              <div className="text-xs text-gray-600 mr-2">{items.length} items</div>
-                              <button
-                                aria-label={`toggle-${sub}`}
-                                onClick={() => toggleSubcat(sub)}
-                                className={`p-2 rounded-full bg-gray-50 border text-blue-700 ${isOpen ? "bg-blue-600 text-white" : ""}`}
-                              >
-                                {isOpen ? <FaChevronUp /> : <FaChevronDown />}
-                              </button>
-                            </div>
-                          </div>
-
-                          {isOpen && (
-                            <div className="px-3 pb-3">
-                              <div className="relative">
-                                <button
-                                  aria-label={`subcat-${sub}-left`}
-                                  onClick={() => scrollSubcat(sub, "left")}
-                                  disabled={!subcatScrollState[sub]?.left}
-                                  className={`absolute left-1 top-1/2 -translate-y-1/2 z-20 p-2 rounded-full bg-white border text-blue-700 shadow ${subcatScrollState[sub]?.left ? "" : "opacity-40 cursor-not-allowed"}`}
-                                >
-                                  <FaChevronLeft />
-                                </button>
-
-                                <div
-                                  ref={(el) => { subcatRefs.current[sub] = el; }}
-                                  className="no-scrollbar overflow-x-auto px-1 py-2"
-                                  style={{ scrollBehavior: "smooth", paddingLeft: 48, paddingRight: 48 }}
-                                >
-                                  <div className="flex gap-3 items-start py-2 flex-nowrap">
-                                    {items.length === 0 ? (
-                                      <div className="text-sm text-gray-700 p-4">No products in this subcategory</div>
-                                    ) : (
-                                      items.map((p) => {
-                                        const qty = qtyInCart(p.id);
-                                        return (
-                                          <div
-                                            key={p.id}
-                                            className={`flex-shrink-0 min-w-[160px] p-3 bg-gray-50 rounded shadow-sm flex flex-col items-center`}
-                                          >
-                                            <img src={resolveImageUrl(p.image || p.image_url)} alt={p.name} className="h-20 object-contain mb-2" />
-                                            <div className="text-xs font-semibold text-gray-800 text-center">{p.name}</div>
-                                            <div className="text-[11px] text-gray-700 text-center">
-                                              {p.brand && <span className="mr-1 text-[10px] text-gray-500">{p.brand}</span>}
-                                              {p.unit && <span className="mx-1">{p.unit}</span>}
-                                              {p.stock ? <span className="ml-1">{p.stock} in stock</span> : null}
-                                            </div>
-                                            <div className="text-blue-800 font-semibold text-xs mt-2">Rs. {p.price}</div>
-
-                                            <div className="mt-3 flex items-center gap-2">
-                                              <button
-                                                onClick={() => {
-                                                  if (qty > 0) updateQty(p.id, qty - 1);
-                                                }}
-                                                className="px-2 py-1 bg-gray-100 rounded text-xs text-blue-800"
-                                                aria-label={`decrease-${p.id}`}
-                                              >
-                                                -
-                                              </button>
-                                              <span className="px-2 text-xs font-semibold">{qty}</span>
-                                              <button
-                                                onClick={() => addToCart(p, 1)}
-                                                className="px-2 py-1 bg-blue-600 text-white rounded text-xs"
-                                                aria-label={`increase-${p.id}`}
-                                              >
-                                                +
-                                              </button>
-                                            </div>
-                                          </div>
-                                        );
-                                      })
-                                    )}
-                                  </div>
-                                </div>
-
-                                <button
-                                  aria-label={`subcat-${sub}-right`}
-                                  onClick={() => scrollSubcat(sub, "right")}
-                                  disabled={!subcatScrollState[sub]?.right}
-                                  className={`absolute right-1 top-1/2 -translate-y-1/2 z-20 p-2 rounded-full bg-white border text-blue-700 shadow ${subcatScrollState[sub]?.right ? "" : "opacity-40 cursor-not-allowed"}`}
-                                >
-                                  <FaChevronRight />
-                                </button>
-                              </div>
-                            </div>
-                          )}
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
+                </div>
               </div>
 
               <div className="bg-white rounded-2xl shadow p-4 relative">
@@ -974,20 +810,13 @@ export default function Dashboard() {
                     <FaReceipt className="text-blue-700" size={18} aria-hidden />
                     <h3 className="text-base font-semibold text-blue-900">Billing History</h3>
                   </div>
-                  <div className="flex items-center gap-2">
-                    {/* show label for the most recent group */}
-                    <span className="text-xs text-gray-800 font-semibold">
-                      {Object.keys(groupedOrders).length ? formatGroupLabel(Object.keys(groupedOrders).sort((a,b)=> b.localeCompare(a))[0]) : ""}
-                    </span>
-                  </div>
                 </div>
 
                 <div className="relative">
                   <button
                     aria-label="billing-up"
                     onClick={() => scrollBilling("up")}
-                    disabled={!canScrollUpBill}
-                    className={`absolute right-1 top-4 z-40 p-2 rounded-full bg-white border text-blue-700 shadow ${canScrollUpBill ? "" : "opacity-40 cursor-not-allowed"}`}
+                    className={`absolute right-1 top-4 z-40 p-2 rounded-full bg-white border text-blue-700 shadow`}
                   >
                     <FaChevronUp />
                   </button>
@@ -1002,7 +831,6 @@ export default function Dashboard() {
                     ) : Object.keys(groupedOrders).length === 0 ? (
                       <div className="text-xs text-gray-700">No recent orders</div>
                     ) : (
-                      // render groups sorted newest date first
                       Object.keys(groupedOrders)
                         .sort((a, b) => b.localeCompare(a))
                         .map((dateKey) => (
@@ -1038,7 +866,6 @@ export default function Dashboard() {
                                     </button>
                                   </div>
 
-                                  {/* Expanded content: show items when order is expanded */}
                                   {expanded && details && (
                                     <div className="px-3">
                                       {Array.isArray(details.items) && details.items.length > 0 ? (
@@ -1082,14 +909,12 @@ export default function Dashboard() {
                   <button
                     aria-label="billing-down"
                     onClick={() => scrollBilling("down")}
-                    disabled={!canScrollDownBill}
-                    className={`absolute right-1 bottom-4 z-20 p-2 rounded-full bg-white border text-blue-700 shadow ${canScrollDownBill ? "" : "opacity-40 cursor-not-allowed"}`}
+                    className={`absolute right-1 bottom-4 z-20 p-2 rounded-full bg-white border text-blue-700 shadow`}
                   >
                     <FaChevronDown />
                   </button>
                 </div>
               </div>
-
             </section>
 
             <aside className="lg:col-span-4 flex flex-col gap-6">
@@ -1115,7 +940,6 @@ export default function Dashboard() {
 
                 <div
                   ref={cartRef}
-                  // show native scrollbar when more than 3 items; hide scrollbar for 3 or fewer
                   className={`${cart.length >= 3 ? "overflow-y-auto" : "overflow-visible no-scrollbar"}`}
                   style={{ maxHeight: cart.length >= 3 ? 300 : "auto", transition: "max-height 200ms ease" }}
                 >
@@ -1131,7 +955,7 @@ export default function Dashboard() {
                         />
                         <div className="flex-1">
                           <div className="text-xs font-semibold text-gray-800">{it.product.name}</div>
-                          <div className="text-xs text-gray-700">{it.product.category} • {it.product.subcategory} • {it.product.brand}</div>
+                          <div className="text-xs text-gray-700">{it.product.category} • {it.product.brand}</div>
                         </div>
                         <div className="text-xs text-blue-900 font-semibold">Rs. {it.product.price}</div>
                         <div className="flex items-center gap-1 ml-3">
@@ -1165,12 +989,12 @@ export default function Dashboard() {
                 </div>
 
                 <div className="flex gap-2 mt-3">
-                  <button onClick={() => handleCheckout("CASH")} className="flex-1 px-3 py-2 text-sm bg-blue-600 text-white font-semibold rounded">CASH</button>
-                  <button onClick={() => handleCheckout("CARD")} className="px-3 py-2 text-sm bg-blue-600 text-white font-semibold rounded">CARD</button>
-                  <button onClick={() => handleCheckout("LOYALTY")} className="px-3 py-2 text-sm bg-blue-600 text-white font-semibold rounded">LOYALTY</button>
+                  <button onClick={() => navigateToPayment("CASH")} className="flex-1 px-3 py-2 text-sm bg-blue-600 text-white font-semibold rounded">CASH</button>
+                  <button onClick={() => navigateToPayment("CARD")} className="px-3 py-2 text-sm bg-blue-600 text-white font-semibold rounded">CARD</button>
+                  <button onClick={() => navigateToPayment("LOYALTY")} className="px-3 py-2 text-sm bg-blue-600 text-white font-semibold rounded">LOYALTY</button>
                 </div>
 
-                <button className="mt-2 w-full px-3 py-2 text-sm bg-blue-600 text-white font-semibold rounded">DIGITAL WALLET</button>
+                <button onClick={() => navigateToPayment("WALLET")} className="mt-2 w-full px-3 py-2 text-sm bg-blue-600 text-white font-semibold rounded">DIGITAL WALLET</button>
 
                 <div className="mt-3 flex gap-4 justify-center items-center">
                   <button title="Print" className="p-3 bg-blue-50 border rounded-full text-blue-700 hover:bg-blue-100 hover:scale-105 transition">
@@ -1188,8 +1012,8 @@ export default function Dashboard() {
               <div className="bg-white rounded-2xl shadow p-4">
                 <h4 className="text-xs font-semibold text-blue-900 mb-2">Actions</h4>
                 <div className="grid grid-cols-2 gap-2">
-                  <button className="w-full px-3 py-2 text-xs bg-blue-100 text-blue-800 border font-semibold rounded">VOID</button>
-                  <button className="w-full px-3 py-2 text-xs bg-blue-100 text-blue-800 border font-semibold rounded">HOLD</button>
+                  <button onClick={() => handleVoidOrder()} className="w-full px-3 py-2 text-xs bg-blue-100 text-blue-800 border font-semibold rounded">VOID</button>
+                  <button onClick={() => handleHoldOrder()} className="w-full px-3 py-2 text-xs bg-blue-100 text-blue-800 border font-semibold rounded">HOLD</button>
                   <button className="w-full px-3 py-2 text-xs bg-blue-100 text-blue-800 border font-semibold rounded">DISCOUNT</button>
                   <button className="w-full px-3 py-2 text-xs bg-blue-100 text-blue-800 border font-semibold rounded">CUSTOMER LOOKUP</button>
                 </div>
@@ -1218,4 +1042,3 @@ export default function Dashboard() {
     </div>
   );
 }
-// ...existing code...

@@ -5,7 +5,8 @@ const API_BASE_URL = apiConfig.baseUrl || process.env.NEXT_PUBLIC_API_URL || "ht
 
 const client = axios.create({
   baseURL: API_BASE_URL,
-  timeout: apiConfig.timeout || 10000,
+  // increased timeout for PDF generation / backend processing
+  timeout: apiConfig.timeout || 60000,
 });
 
 // Attach token automatically

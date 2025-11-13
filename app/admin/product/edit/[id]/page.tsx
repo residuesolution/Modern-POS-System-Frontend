@@ -2,6 +2,8 @@
 import React, { useEffect, useState, ChangeEvent, FormEvent } from "react";
 import { useRouter, useParams } from "next/navigation";
 import { fetchCurrentUser } from "@/services/authService";
+import ProfileHeader from "@/components/ProfileHeader";
+
 
 interface Product {
   id: number;
@@ -174,10 +176,10 @@ const EditProductPage = () => {
       {/* Main Content */}
       <main className="flex-1 ml">
         {/* Top Bar */}
-        <div className="bg-white border-b border-gray-200 px-8 py-4">
+        <div className="  px-8 py-4">
           <div className="flex items-center justify-between">
             {/* Breadcrumb */}
-            <div className="flex items-center space-x-2 text-sm text-gray-600">
+            <div className="flex items-center space-x-2 text-sm text-gray-600 ">
               <button 
                 onClick={() => router.push('/admin/product/view')}
                 className="hover:text-blue-600 transition-colors"
@@ -189,29 +191,14 @@ const EditProductPage = () => {
             </div>
 
             {/* User Profile */}
-            <div className="flex items-center space-x-3 bg-gray-50 rounded-full px-4 py-2">
-              <div className="text-right">
-                <div className="text-sm font-semibold text-gray-800">
-                  {user?.name || 'User'}
-                </div>
-                <div className="text-xs text-gray-500 uppercase">
-                  {user?.role || 'ROLE'}
-                </div>
-              </div>
-              <div className="w-10 h-10 bg-gray-300 rounded-full flex items-center justify-center">
-                {user?.profilePhoto ? (
-                  <img 
-                    src={user.profilePhoto} 
-                    alt={user.name || 'User'} 
-                    className="w-10 h-10 rounded-full object-cover"
-                  />
-                ) : (
-                  <span className="text-white text-sm font-semibold">
-                    {(user?.name || 'U').charAt(0).toUpperCase()}
-                  </span>
-                )}
-              </div>
-            </div>
+            {user && (
+                    <ProfileHeader
+                      name={user.name}
+                      role={user.role}
+                      profilePhoto={user.profilePhoto}
+                    />
+                  )}
+           
           </div>
         </div>
 

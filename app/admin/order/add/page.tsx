@@ -72,7 +72,6 @@ export default function ProductListPage() {
           throw new Error(`Failed to fetch products: ${resp.status} ${txt}`);
         }
         const payload = await resp.json();
-        // backend may wrap data in { data: [...] } or return array directly
         const list: any[] = Array.isArray(payload) ? payload : payload?.data ?? payload?.items ?? [];
         setProducts(list.map((p: any) => ({
           id: p.id,
@@ -97,7 +96,6 @@ export default function ProductListPage() {
   }, [router]);
 
   useEffect(() => {
-    // fetch supplier orders — backend exposes orders at /api/orders (OrderController)
     async function fetchSupplierOrders() {
       setSupplierOrdersLoading(true);
       setSupplierOrdersError("");
@@ -109,7 +107,6 @@ export default function ProductListPage() {
 
         const res = await fetch(`${apiUrl}/api/orders`, { headers });
         if (!res.ok) {
-          // parse useful server message
           let serverMsg = "";
           try {
             const json = await res.json();
@@ -120,7 +117,6 @@ export default function ProductListPage() {
           throw new Error(`Server responded ${res.status}: ${serverMsg}`);
         }
         const data = await res.json();
-        // normalize payload
         const list = Array.isArray(data) ? data : data?.data ?? data?.items ?? [];
         setSupplierOrders(list);
       } catch (err: any) {
@@ -168,61 +164,69 @@ export default function ProductListPage() {
         <TopNavBar user={user || { name: "Admin", role: "ADMIN" }} onSearch={() => {}} />
         <main className="flex-1 p-6 mt-20">
           <div className="max-w-6xl mx-auto space-y-6">
-            <div className="bg-white p-4 rounded shadow">
-              <h2 className="font-semibold text-lg mb-3">Products</h2>
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="text-left">
-                      <th className="py-2">ID</th>
-                      <th className="py-2">Name</th>
-                      <th className="py-2">SKU</th>
-                      <th className="py-2">Price</th>
-                      <th className="py-2">Stock</th>
-                      <th className="py-2">Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {products.map((p) => (
-                      <tr key={p.id} className="border-t">
-                        <td className="py-2">{p.id}</td>
-                        <td className="py-2">{p.name}</td>
-                        <td className="py-2">{p.sku}</td>
-                        <td className="py-2">Rs. {p.price}</td>
-                        <td className="py-2">{p.stock}</td>
-                        <td className="py-2">
-                          <button onClick={() => router.push(`/admin/product/edit/${p.id}`)} className="text-blue-600 mr-3">Edit</button>
-                          <button onClick={() => handleDelete(p.id)} className="text-red-600">Delete</button>
-                        </td>
+            <div className="flex gap-30"> {/* Use Flexbox for horizontal layout */}
+              
+              {/* Product List */}
+              <div className="bg-white p-8 rounded shadow flex-23">
+                <h2 className="font-semibold text-lg mb-3">Products</h2>
+                <div className={`overflow-x-auto ${products.length > 3 ? "max-h-60 overflow-y-auto" : ""}`}>
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="text-left">
+                        <th className="py-2 px-2">ID</th>
+                        <th className="py-2">Name</th>
+                        <th className="py-2">SKU</th>
+                        <th className="py-2">Price</th>
+                        <th className="py-2 px-1">Stock</th>
+                        <th className="py-2">Actions</th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
+                    </thead>
+                    <tbody>
+                      {products.map((p) => (
+                        <tr key={p.id} className="border-t">
+                          <td className="py-2">{p.id}</td>
+                          <td className="py-2">{p.name}</td>
+                          <td className="py-2">{p.sku}</td>
+                          <td className="py-2">Rs. {p.price}</td>
+                          <td className="py-2">{p.stock}</td>
+                          <td className="py-2">
+                            <button onClick={() => router.push(`/admin/product/edit/${p.id}`)} className="text-blue-600 mr-3">Edit</button>
+                            <button onClick={() => handleDelete(p.id)} className="text-red-600">Delete</button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
               </div>
-            </div>
 
-            <div className="bg-white p-4 rounded shadow">
-              <h2 className="font-semibold text-lg mb-3">Recent Orders</h2>
-              {supplierOrdersLoading ? (
-                <div className="text-xs text-blue-700">Loading orders...</div>
-              ) : supplierOrdersError ? (
-                <div className="text-xs text-red-600">Error: {supplierOrdersError}</div>
-              ) : supplierOrders.length === 0 ? (
-                <div className="text-xs text-gray-600">No orders found.</div>
-              ) : (
-                <ul className="space-y-2">
-                  {supplierOrders.slice(0, 10).map((o: any) => (
-                    <li key={o.id} className="p-2 border rounded flex items-center justify-between">
-                      <div>
-                        <div className="font-semibold">#{o.id} — {o.customer_id ? `Customer ${o.customer_id}` : "Walk-in"}</div>
-                        <div className="text-xs text-gray-600">Items: {o.items?.length ?? o.totalItems ?? 0}</div>
-                      </div>
-                      <div className="text-blue-800 font-semibold">Rs. {o.total_amount ?? o.totalAmount ?? 0}</div>
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </div>
+              {/* Recent Orders */}
+              <div className="bg-white p-4 rounded shadow flex-12">
+                <h2 className="font-semibold text-lg mb-3">Recent Orders</h2>
+                {supplierOrdersLoading ? (
+                  <div className="text-xs text-blue-700">Loading orders...</div>
+                ) : supplierOrdersError ? (
+                  <div className="text-xs text-red-600">Error: {supplierOrdersError}</div>
+                ) : supplierOrders.length === 0 ? (
+                  <div className="text-xs text-gray-600">No orders found.</div>
+                ) : (
+                  <div className={`${supplierOrders.length > 3 ? "max-h-60 overflow-y-auto" : ""}`}>
+                    <ul className="space-y-2">
+                      {supplierOrders.slice(0, 10).map((o: any) => (
+                        <li key={o.id} className="p-4 border rounded flex items-center justify-between">
+                          <div>
+                            <div className="font-semibold">#{o.id} — {o.customer_id ? `Customer ${o.customer_id}` : "Walk-in"}</div>
+                            <div className="text-xs text-gray-600">Items: {o.items?.length ?? o.totalItems ?? 0}</div>
+                          </div>
+                          <div className="text-blue-800 font-semibold">Rs. {o.total_amount ?? o.totalAmount ?? 0}</div>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+              </div>
+
+            </div> {/* End of flex container */}
           </div>
         </main>
       </div>

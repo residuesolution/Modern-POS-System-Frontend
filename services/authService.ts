@@ -1,9 +1,9 @@
-// ...existing code...
 import axios from "axios";
 import { apiConfig } from "../config/apiConfig";
 import client from "../utils/appClient";
 
 const API_BASE_URL = apiConfig.baseUrl;
+const API_BASE = process.env.NEXT_PUBLIC_API_URL || API_BASE_URL;
 console.log("API_BASE_URL:", API_BASE_URL);
 
 interface AuthResponse {
@@ -12,6 +12,8 @@ interface AuthResponse {
   id?: number;
   [key: string]: any;
 }
+
+// --- helper functions (existing exports) ---
 export async function emailOrderReceipt(orderId: number, email?: string) {
   const body = email ? { email } : {};
   const res = await client.post(`/api/orders/email/${orderId}`, body);
@@ -25,7 +27,7 @@ export async function smsOrderReceipt(orderId: number, phone: string) {
 
 export async function printOrderReceipt(orderId: number) {
   const res = await client.post(`/api/orders/print/${orderId}`);
-  return res.data; // { html: "..." }
+  return res.data;
 }
 
 export async function holdOrder(orderId: number) {
@@ -110,7 +112,7 @@ export const resetPassword = async (token: string, password: string) => {
   return response.data;
 };
 
-// --- WebAuthn Biometric Authentication ---
+// WebAuthn helpers...
 export const getWebAuthnRegistrationOptions = async (email: string) => {
   const response = await axios.post(
     `${API_BASE_URL}${apiConfig.endpoints.auth.WEBAUTHN_REGISTER_OPTIONS}`,
@@ -162,7 +164,7 @@ export const verifyWebAuthnLogin = async (
   return response.data;
 };
 
-// --- Admin APIs for Hardware Status & System Configuration ---
+// Admin / Profile / Help / Product APIs (kept as-is)
 export const fetchHardwareStatus = async () => {
   const token = localStorage.getItem("authToken");
   const res = await axios.get(
@@ -185,7 +187,6 @@ export const fetchSystemConfig = async () => {
   return res.data;
 };
 
-// --- Profile APIs ---
 export const fetchCurrentUser = async () => {
   const token = localStorage.getItem("authToken");
   const res = await axios.get(`${API_BASE_URL}/api/auth/me`, {
@@ -234,8 +235,7 @@ export const sendHelpFeedback = async ({
   return res.data;
 };
 
-// Product search — backend path is /api/product/search
-// ...existing code...
+// Search, product by barcode, createBill (kept, with binary handling)
 export async function searchProducts(query: string) {
   if (!query || !query.trim()) return [];
   const base = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080";
@@ -245,17 +245,14 @@ export async function searchProducts(query: string) {
   const headers: Record<string, string> = { Accept: "application/json" };
 
   if (token) {
-    headers["Authorization"] = `Bearer ${token}`; // Set Authorization header with token
+    headers["Authorization"] = `Bearer ${token}`;
   } else {
     console.warn("[searchProducts] no auth token found in localStorage (authToken)");
   }
 
   const res = await fetch(url, { headers });
   const text = await res.text();
-  console.debug("[searchProducts] url=", url, "status=", res.status, "raw=", text);
-
   if (!res.ok) {
-    console.error("[searchProducts] HTTP error", res.status, text);
     throw new Error(`Search failed (${res.status})`);
   }
   if (!text.trim()) return [];
@@ -263,11 +260,9 @@ export async function searchProducts(query: string) {
     const json = JSON.parse(text);
     return Array.isArray(json) ? json : json?.data || json?.items || [];
   } catch {
-    console.warn("[searchProducts] invalid JSON, returning []", text);
     return [];
   }
 }
-
 
 export async function searchOrders(query: string) {
   if (!query || !query.trim()) return [];
@@ -278,17 +273,14 @@ export async function searchOrders(query: string) {
   const headers: Record<string, string> = { Accept: "application/json" };
 
   if (token) {
-    headers["Authorization"] = `Bearer ${token}`; // Set Authorization header with token
+    headers["Authorization"] = `Bearer ${token}`;
   } else {
     console.warn("[searchOrders] no auth token found in localStorage (authToken)");
   }
 
   const res = await fetch(url, { headers });
   const text = await res.text();
-  console.debug("[searchOrders] url=", url, "status=", res.status, "raw=", text);
-
   if (!res.ok) {
-    console.error("[searchOrders] HTTP error", res.status, text);
     throw new Error(`Search failed (${res.status})`);
   }
   if (!text.trim()) return [];
@@ -296,31 +288,33 @@ export async function searchOrders(query: string) {
     const json = JSON.parse(text);
     return Array.isArray(json) ? json : json?.data || json?.items || [];
   } catch {
-    console.warn("[searchOrders] invalid JSON, returning []", text);
     return [];
   }
 }
 
-// Fetch notifications
 export async function fetchNotifications() {
   const res = await client.get("/api/notifications");
   return res.data;
 }
 
-// Product by barcode
 export async function fetchProductByBarcode(barcode: string) {
-  const res = await client.get(`/api/product/barcode/${encodeURIComponent(barcode)}`);
-  return res.data;
+  if (!barcode) throw new Error("barcode required");
+  try {
+    const res = await client.get(`/api/product/barcode/${encodeURIComponent(barcode)}`);
+    return res.data?.data || res.data || null;
+  } catch (err: any) {
+    const msg = err?.response?.data?.message || err?.response?.data?.error || err?.message || "Failed to fetch product";
+    const e = new Error(msg);
+    (e as any).original = err;
+    throw e;
+  }
 }
 
-
 export async function createBill(data: { order: any; items: any[] }) {
-  // Use axios client to request arraybuffer so we can handle PDF binary or JSON fallback
-  const res = await client.post("/api/orders/add", data, { responseType: "arraybuffer" });
+  const res = await client.post("/api/orders/add", data, { responseType: "arraybuffer", timeout: 60000 });
   const contentType = (res.headers && (res.headers["content-type"] || res.headers["Content-Type"]))?.toLowerCase() || "";
-
-  // convert ArrayBuffer to Uint8Array for decoding / blob creation
-  const arr = res.data instanceof ArrayBuffer ? new Uint8Array(res.data) : new Uint8Array(res.data);
+  const raw = res.data as ArrayBuffer | Uint8Array;
+  const arr = raw instanceof ArrayBuffer ? new Uint8Array(raw) : new Uint8Array(raw);
 
   if (contentType.includes("application/json")) {
     const text = new TextDecoder("utf-8").decode(arr);
@@ -336,7 +330,6 @@ export async function createBill(data: { order: any; items: any[] }) {
     return { pdf_blob: blob };
   }
 
-  // HTML/text fallback
   const text = new TextDecoder("utf-8").decode(arr);
   if (contentType.includes("text/html") || text.trim().startsWith("<")) {
     return { html: text };
@@ -354,6 +347,7 @@ const buildHeaders = (extra?: Record<string, string>) => {
   };
 };
 
+// Face / categories etc. (kept)
 export async function registerFace(email: string, embedding: number[]) {
   try {
     const res = await axios.post(
@@ -365,9 +359,7 @@ export async function registerFace(email: string, embedding: number[]) {
     );
     return res.data;
   } catch (err: any) {
-    throw new Error(
-      err.response?.data?.message || err.message || "Face registration failed"
-    );
+    throw new Error(err.response?.data?.message || err.message || "Face registration failed");
   }
 }
 
@@ -380,7 +372,6 @@ export async function loginFace(email: string, embedding: number[]) {
         headers: buildHeaders({ "Content-Type": "application/json" }),
       }
     );
-    // if backend returns token, persist it
     if (res.data?.token) {
       localStorage.setItem("authToken", res.data.token);
       if (res.data.id) localStorage.setItem("userId", String(res.data.id));
@@ -397,12 +388,8 @@ export async function loginFace(email: string, embedding: number[]) {
 export async function getFace(email: string) {
   try {
     const res = await axios.get(
-      `${API_BASE_URL}${apiConfig.endpoints.auth.FACEID_GET}${encodeURIComponent(
-        email
-      )}`,
-      {
-        headers: buildHeaders(),
-      }
+      `${API_BASE_URL}${apiConfig.endpoints.auth.FACEID_GET}${encodeURIComponent(email)}`,
+      { headers: buildHeaders() }
     );
     return res.data;
   } catch (err: any) {
@@ -418,9 +405,7 @@ export async function updateFace(email: string, embedding: number[]) {
     const res = await axios.put(
       `${API_BASE_URL}${apiConfig.endpoints.auth.FACEID_UPDATE}`,
       { email, embedding },
-      {
-        headers: buildHeaders({ "Content-Type": "application/json" }),
-      }
+      { headers: buildHeaders({ "Content-Type": "application/json" }) }
     );
     return res.data;
   } catch (err: any) {
@@ -434,12 +419,8 @@ export async function updateFace(email: string, embedding: number[]) {
 export async function deleteFace(email: string) {
   try {
     const res = await axios.delete(
-      `${API_BASE_URL}${apiConfig.endpoints.auth.FACEID_DELETE}${encodeURIComponent(
-        email
-      )}`,
-      {
-        headers: buildHeaders(),
-      }
+      `${API_BASE_URL}${apiConfig.endpoints.auth.FACEID_DELETE}${encodeURIComponent(email)}`,
+      { headers: buildHeaders() }
     );
     return res.data;
   } catch (err: any) {
@@ -449,3 +430,50 @@ export async function deleteFace(email: string) {
     throw new Error(err.response?.data?.message || err.message || "Failed to delete face data");
   }
 }
+
+// categories
+export async function fetchCategories() {
+  const base = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080";
+  const url = `${base}/api/category`;
+  const token = typeof window !== "undefined" ? localStorage.getItem("authToken") : null;
+  const headers: Record<string, string> = { Accept: "application/json" };
+  if (token) headers["Authorization"] = `Bearer ${token}`;
+  const res = await fetch(url, { headers });
+  if (!res.ok) return [];
+  const data = await res.json();
+  if (Array.isArray(data)) return data;
+  if (Array.isArray(data?.data)) return data.data;
+  if (Array.isArray(data?.items)) return data.items;
+  return [];
+}
+
+// Named export: processPayment -> posts to backend payments/process
+export async function processPayment(payload: any) {
+  const token = typeof window !== "undefined" ? localStorage.getItem("authToken") : null;
+  const res = await fetch(`${API_BASE}/api/payments/process`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+    body: JSON.stringify(payload),
+  });
+  if (!res.ok) {
+    const txt = await res.text().catch(() => null);
+    throw new Error(`Payment failed: ${res.status} ${txt ?? ""}`);
+  }
+  return res.json().catch(() => ({}));
+}
+
+export default {
+  fetchCurrentUser,
+  fetchNotifications,
+  fetchProductByBarcode,
+  createBill,
+  emailOrderReceipt,
+  smsOrderReceipt,
+  printOrderReceipt,
+  holdOrder,
+  voidOrder,
+  searchProducts,
+  searchOrders,
+  fetchCategories,
+  processPayment, // include named helper in default export for convenience
+};
