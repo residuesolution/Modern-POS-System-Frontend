@@ -1,6 +1,7 @@
 "use client";
 import { useState } from "react";
 import { createBill, fetchProductByBarcode } from "../services/authService";
+import { useRouter } from "next/navigation";
 
 export default function CreateBill({ onBillCreated }: { onBillCreated?: (bill: any) => void }) {
   const [items, setItems] = useState<any[]>([]);
@@ -8,12 +9,12 @@ export default function CreateBill({ onBillCreated }: { onBillCreated?: (bill: a
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState("");
   const [paymentMethod, setPaymentMethod] = useState<"CASH" | "CARD" | "LOYALTY" | "WALLET">("CASH");
+  const router = useRouter();
 
   const handleAddItem = async () => {
     if (!barcode?.trim()) return;
     setLoading(true);
     setMessage("");
-
     try {
       const product: any = await fetchProductByBarcode(barcode.trim());
       if (!product || !product.id) {
@@ -21,7 +22,6 @@ export default function CreateBill({ onBillCreated }: { onBillCreated?: (bill: a
         setBarcode("");
         return;
       }
-
       const unitPrice = Number(product.price ?? product.unit_price ?? 0);
       const newItem = {
         product_id: product.id,
@@ -31,7 +31,6 @@ export default function CreateBill({ onBillCreated }: { onBillCreated?: (bill: a
         unit_price: unitPrice,
         total_price: unitPrice * 1,
       };
-
       setItems(prev => [...prev, newItem]);
       setBarcode("");
     } catch (err) {
@@ -70,92 +69,74 @@ export default function CreateBill({ onBillCreated }: { onBillCreated?: (bill: a
     }
   };
 
-  // Create order on backend, save created order + items to sessionStorage and redirect to payment page
   const handleCreateBill = async () => {
-    if (items.length === 0) {
-      setMessage("Add at least one item.");
-      return;
-    }
-    setLoading(true);
-    setMessage("");
-    try {
-      const total = items.reduce((s, it) => s + Number(it.total_price ?? 0), 0);
-      const order = {
-        customer_id: Number(1),
-        user_id: Number(localStorage.getItem("userId")) || 1,
-        payment_method: paymentMethod,
-        total_amount: Number(total) || 0,
-        discount_amount: 0,
-        loyalty_points_used: 0,
-        status: "completed"
-      };
+    if (items.length === 0) { setMessage("Add items"); return; }
 
-      const payload = {
-        order,
-        items: items.map(it => ({
-          product_id: Number(it.product_id),
-          barcode: it.barcode,
-          product_name: it.productName,
-          quantity: Number(it.quantity || 0),
-          unit_price: Number(it.unit_price || 0),
-          total_price: Number(it.total_price || 0),
-        })),
-      };
-
-      // create order (backend may return json or pdf/blob); keep current behavior
-      const res = await createBill(payload);
-
-      // Notify other tabs/pages
-      try { localStorage.setItem("order-created", String(Date.now())); } catch (e) { /* ignore */ }
-
-      // handle PDF / HTML responses if backend returned them
-      if (res && res.pdf_blob instanceof Blob) {
-        openPdfBlob(res.pdf_blob);
-      } else if (res && res.html) {
-        openHtml(res.html);
-      } else if (res && res.pdf_url) {
-        window.open(res.pdf_url, "_blank");
-      }
-
-      setMessage("Bill created!");
-      setItems([]);
-
-      // Save created order / items / meta to sessionStorage and redirect to payment page.
+    // If user selected CARD -> prepare session and redirect to card payment page
+    if (paymentMethod === "CARD") {
       try {
-        // Normalize created order id and order object from different backends
-        const createdOrder = res?.data ?? res ?? {};
-        sessionStorage.setItem("checkout_order", JSON.stringify(createdOrder));
-        sessionStorage.setItem("checkout_items", JSON.stringify(payload.items));
-        sessionStorage.setItem("checkout_meta", JSON.stringify({ paymentMethod, total }));
-      } catch (e) {
-        console.error("sessionStorage save failed", e);
-      }
+        // Normalize cart for payment page: Payment page expects items like { product: {id, price, name}, qty }
+        const normalizedCart = items.map(it => ({
+          product: { id: it.product_id, price: it.unit_price, name: it.productName ?? it.barcode },
+          qty: it.quantity ?? 1,
+        }));
 
-      // redirect to payment page for selected method
-      if (typeof window !== "undefined") {
-        window.location.href = `/payments/${paymentMethod.toLowerCase()}`;
-      }
+        const userJson = typeof window !== "undefined" ? localStorage.getItem("user") : null;
+        const user = userJson ? JSON.parse(userJson) : null;
+        const meta = { user: user ?? null };
 
-      onBillCreated?.(res);
-    } catch (err) {
-      console.error("create bill error:", err);
-      setMessage("Failed to create bill.");
+        sessionStorage.setItem("checkout_cart", JSON.stringify(normalizedCart));
+        sessionStorage.setItem("checkout_meta", JSON.stringify(meta));
+
+        // Redirect to card payment route which reads sessionStorage
+        router.push("/payments/card");
+        return;
+      } catch (err: any) {
+        console.error("prepare checkout failed", err);
+        setMessage("Failed to start card checkout");
+        return;
+      }
+    }
+
+    // Non-card: create bill / process payment directly
+    setLoading(true);
+    try {
+      const token = typeof window !== "undefined" ? localStorage.getItem("authToken") || localStorage.getItem("token") : null;
+      const userJson = typeof window !== "undefined" ? localStorage.getItem("user") : null;
+      const user = userJson ? JSON.parse(userJson) : null;
+      const payload = {
+        paymentMethod: paymentMethod.toLowerCase(),
+        amount: items.reduce((s, it) => s + Number(it.total_price || 0), 0),
+        cart: items.map(it => ({ product_id: it.product_id, quantity: it.quantity, unit_price: it.unit_price })),
+        metadata: { note: "POS bill" },
+        userId: user?.id ?? null
+      };
+
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080"}/api/payments/process`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+        body: JSON.stringify(payload)
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json?.message || "Failed to create bill");
+
+      onBillCreated?.(json);
+      // clear local UI cart
+      setItems([]);
+      // notify other parts
+      try { localStorage.setItem("order-created", Date.now().toString()); } catch {}
+      router.push("/payments");
+    } catch (err: any) {
+      console.error("create bill error", err);
+      setMessage(err?.message || "Failed to create bill");
     } finally {
       setLoading(false);
     }
   };
-  
+
   return (
     <div className="p-4 bg-white rounded-xl shadow-lg max-w-md w-full">
-      <h2 className="font-bold text-lg mb-2 flex items-center gap-2">
-        <span className="text-blue-700">
-          <svg width="22" height="22" fill="none" viewBox="0 0 24 24">
-            <rect x="4" y="3" width="16" height="18" rx="2" stroke="currentColor" strokeWidth="2"/>
-            <path d="M12 8v8M8 12h8" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
-          </svg>
-        </span>
-        Create Bill
-      </h2>
+      <h2 className="font-bold text-lg mb-2">Create Bill</h2>
 
       <div className="flex gap-2 mb-2">
         <input

@@ -1,52 +1,64 @@
 "use client";
-import React, { useEffect, useState } from "react";
-import { useParams, useRouter } from "next/navigation";
-import PaymentForm from "../../../../components/PaymentForm";
-import PaymentSuccess from "../../../../components/PaymentSuccess";
-import { processPayment } from "../../../../services/paymentService";
 
-export default function PaymentPage() {
-  const { method } = useParams() as { method?: string };
-  const router = useRouter();
-  const m = (method || "cash").toUpperCase();
-  const [cart, setCart] = useState<any[]>([]);
-  const [result, setResult] = useState<any>(null);
+import React, { useEffect, useState } from "react";
+
+const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080";
+
+export default function PaymentsPage() {
+  const [payments, setPayments] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    try {
-      const json = sessionStorage.getItem("checkout_cart");
-      setCart(json ? JSON.parse(json) : []);
-    } catch {
-      setCart([]);
-    }
+    let mounted = true;
+    (async () => {
+      try {
+        const token = typeof window !== "undefined" ? localStorage.getItem("authToken") : null;
+        const res = await fetch(`${API_BASE}/api/payments`, {
+          headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+        });
+        if (!res.ok) throw new Error(`Failed to load payments (${res.status})`);
+        const body = await res.json();
+
+        // Normalize: prefer array, try common shapes
+        let list: any[] = [];
+        if (Array.isArray(body)) list = body;
+        else if (Array.isArray(body.data)) list = body.data;
+        else if (Array.isArray(body.items)) list = body.items;
+        else if (Array.isArray(body.payments)) list = body.payments;
+        else if (body && typeof body === "object") {
+          // if single object, wrap it
+          list = body ? [body] : [];
+        }
+
+        if (mounted) setPayments(list);
+      } catch (err: any) {
+        if (mounted) setError(err.message || "Failed to load payments");
+      } finally {
+        if (mounted) setLoading(false);
+      }
+    })();
+    return () => { mounted = false; };
   }, []);
 
-  async function onPay(payload: any) {
-    setError(null);
-    try {
-      const body = { method: m, cart, amount: payload.amount, metadata: payload.metadata || {} };
-      const res = await processPayment(body);
-      setResult(res);
-      sessionStorage.removeItem("checkout_cart");
-    } catch (err: any) {
-      setError(err?.message || "Payment failed");
-    }
-  }
-
-  if (result) {
-    return <div className="p-6 max-w-lg mx-auto"><PaymentSuccess data={result} onClose={() => router.push("/")} /></div>;
-  }
+  if (loading) return <div>Loading payments...</div>;
+  if (error) return <div style={{ color: "red" }}>Error: {error}</div>;
+  if (!Array.isArray(payments) || payments.length === 0) return <div>No payments found</div>;
 
   return (
-    <div className="p-6 max-w-lg mx-auto">
-      <h2 className="text-lg font-semibold mb-4">Checkout — {m}</h2>
-      {cart.length === 0 ? (
-        <div className="p-4 bg-white rounded">Cart empty. <button className="underline ml-2" onClick={()=>router.push("/")}>Back</button></div>
-      ) : (
-        <PaymentForm method={m as any} cart={cart} onPay={onPay} />
-      )}
-      {error && <div className="mt-3 text-sm text-red-600">{error}</div>}
+    <div>
+      <h1>Payments</h1>
+      <ul>
+        {payments.map((p: any) => (
+          <li key={p.id ?? p.paymentId ?? Math.random()}>
+            <div><strong>Payment ID:</strong> {p.id ?? p.paymentId}</div>
+            <div><strong>Order ID:</strong> {p.orderId ?? "-"}</div>
+            <div><strong>Amount:</strong> {p.amount ?? p.total ?? "-"}</div>
+            <div><strong>Method:</strong> {p.method ?? p.paymentMethod ?? "-"}</div>
+            <hr />
+          </li>
+        ))}
+      </ul>
     </div>
   );
 }

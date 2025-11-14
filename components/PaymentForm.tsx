@@ -1,4 +1,5 @@
 "use client";
+
 import React, { useMemo, useState } from "react";
 
 type CartItem = { product: any; qty: number };
@@ -10,11 +11,14 @@ export default function PaymentForm({
 }: {
   method: "CASH" | "CARD" | "LOYALTY" | "WALLET";
   cart: CartItem[];
-  onPay: (payload: any) => Promise<void>;
+  onPay: (payload: any) => Promise<any>;
 }) {
   const totals = useMemo(() => {
-    const subtotal = cart.reduce((s, it) => s + (it.product?.price || it.product?.unit_price || 0) * it.qty, 0);
-    const discount = Math.round(subtotal * 0.10);
+    const subtotal = cart.reduce(
+      (s, it) => s + (it.product?.price ?? it.product?.unit_price ?? 0) * it.qty,
+      0
+    );
+    const discount = Math.round(subtotal * 0.1);
     const tax = Math.round(subtotal * 0.15);
     const grand = subtotal - discount + tax;
     return { subtotal, discount, tax, grand };
@@ -24,60 +28,149 @@ export default function PaymentForm({
   const [cardNumber, setCardNumber] = useState("");
   const [phone, setPhone] = useState("");
   const [walletId, setWalletId] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
+
+  function formatCurrency(v: number) {
+    return `Rs. ${v.toLocaleString()}`;
+  }
+
+  function maskCardInput(raw: string) {
+    // keep only digits, group by 4
+    const digits = raw.replace(/\D/g, "").slice(0, 16);
+    return digits.replace(/(\d{4})(?=\d)/g, "$1 ");
+  }
+
+  function validate(): string | null {
+    if (method === "CARD") {
+      const digits = cardNumber.replace(/\D/g, "");
+      if (!digits) return "Card number is required.";
+      if (digits.length < 12) return "Enter a valid card number.";
+    }
+    if (method === "LOYALTY") {
+      if (!phone.trim()) return "Phone / Loyalty ID is required.";
+    }
+    if (method === "WALLET") {
+      if (!walletId.trim()) return "Wallet ID is required.";
+    }
+    if (totals.grand <= 0) return "Cart is empty or amount is zero.";
+    return null;
+  }
 
   async function submit() {
+    const v = validate();
+    if (v) {
+      setError(v);
+      return;
+    }
+
+    setError(null);
     setProcessing(true);
     try {
       const payload = {
         paymentMethod: method,
         amount: totals.grand,
         metadata: {
-          cardNumber: method === "CARD" ? cardNumber : undefined,
+          cardNumber: method === "CARD" ? cardNumber.replace(/\s/g, "") : undefined,
           phone: method === "LOYALTY" ? phone : undefined,
-          walletId: method === "WALLET" ? walletId : undefined,
+          walletId: method === "WALLET" ? walletId : undefined
         },
+        cart
       };
-      await onPay(payload);
+      const res = await onPay(payload);
+      setSuccessMessage("Payment completed");
+      return res;
+    } catch (err: any) {
+      setError(err?.message ?? "Payment failed");
+      throw err;
     } finally {
       setProcessing(false);
     }
   }
 
   return (
-    <div className="bg-white p-4 rounded shadow">
-      <h3 className="font-semibold mb-2">Pay with {method}</h3>
+    <div className="max-w-2xl mx-auto bg-white p-6 rounded-lg shadow-md">
+      <div className="flex justify-between items-center mb-4">
+        <h3 className="text-lg font-semibold">Pay with {method}</h3>
+        <div className="text-sm text-gray-600">{formatCurrency(totals.grand)}</div>
+      </div>
 
-      <div className="text-sm mb-3">
-        <div>Subtotal: Rs. {totals.subtotal}</div>
-        <div>Discount: Rs. {totals.discount}</div>
-        <div>Tax: Rs. {totals.tax}</div>
-        <div className="font-semibold">Grand: Rs. {totals.grand}</div>
+      <div className="grid grid-cols-2 gap-3 text-sm text-gray-700 mb-4">
+        <div>Subtotal: {formatCurrency(totals.subtotal)}</div>
+        <div>Discount: {formatCurrency(totals.discount)}</div>
+        <div>Tax: {formatCurrency(totals.tax)}</div>
+        <div className="font-medium">Grand: {formatCurrency(totals.grand)}</div>
       </div>
 
       {method === "CARD" && (
-        <div className="mb-2">
-          <label className="text-xs">Card number</label>
-          <input value={cardNumber} onChange={(e)=>setCardNumber(e.target.value)} className="w-full border p-2 rounded mt-1" placeholder="4242 4242 4242 4242"/>
+        <div className="mb-3">
+          <label className="block text-xs font-medium mb-1">Card number</label>
+          <input
+            inputMode="numeric"
+            value={cardNumber}
+            onChange={(e) => setCardNumber(maskCardInput(e.target.value))}
+            placeholder="4242 4242 4242 4242"
+            className="w-full border rounded px-3 py-2 focus:ring-2 focus:ring-blue-300"
+          />
+          <div className="text-xs text-gray-500 mt-1">We use a secure processor — only last 4 digits are shown on receipts.</div>
         </div>
       )}
 
       {method === "LOYALTY" && (
-        <div className="mb-2">
-          <label className="text-xs">Phone / Loyalty ID</label>
-          <input value={phone} onChange={(e)=>setPhone(e.target.value)} className="w-full border p-2 rounded mt-1"/>
+        <div className="mb-3">
+          <label className="block text-xs font-medium mb-1">Phone / Loyalty ID</label>
+          <input
+            value={phone}
+            onChange={(e) => setPhone(e.target.value)}
+            placeholder="9876543210"
+            className="w-full border rounded px-3 py-2 focus:ring-2 focus:ring-blue-300"
+          />
         </div>
       )}
 
       {method === "WALLET" && (
-        <div className="mb-2">
-          <label className="text-xs">Wallet identifier</label>
-          <input value={walletId} onChange={(e)=>setWalletId(e.target.value)} className="w-full border p-2 rounded mt-1"/>
+        <div className="mb-3">
+          <label className="block text-xs font-medium mb-1">Wallet identifier</label>
+          <input
+            value={walletId}
+            onChange={(e) => setWalletId(e.target.value)}
+            placeholder="wallet@example"
+            className="w-full border rounded px-3 py-2 focus:ring-2 focus:ring-blue-300"
+          />
         </div>
       )}
 
-      <div className="mt-4 flex gap-2">
-        <button onClick={submit} disabled={processing} className="px-4 py-2 bg-blue-600 text-white rounded">
-          {processing ? "Processing..." : `Pay Rs. ${totals.grand}`}
+      {error && <div className="text-sm text-red-600 mb-3">{error}</div>}
+      {successMessage && <div className="text-sm text-green-700 mb-3">{successMessage}</div>}
+
+      <div className="flex items-center gap-3">
+        <button
+          onClick={submit}
+          disabled={processing}
+          className="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-60"
+        >
+          {processing ? (
+            <svg className="animate-spin mr-2 h-4 w-4" viewBox="0 0 24 24">
+              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
+              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z" />
+            </svg>
+          ) : null}
+          {processing ? "Processing..." : `Pay ${formatCurrency(totals.grand)}`}
+        </button>
+
+        <button
+          type="button"
+          onClick={() => {
+            // simple local "clear" - keep cart data intact; clear method inputs
+            setCardNumber("");
+            setPhone("");
+            setWalletId("");
+            setError(null);
+            setSuccessMessage(null);
+          }}
+          className="px-3 py-2 border rounded text-sm"
+        >
+          Clear
         </button>
       </div>
     </div>

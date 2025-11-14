@@ -297,17 +297,29 @@ export async function fetchNotifications() {
   return res.data;
 }
 
+// export named fetchProductByBarcode (fixed) — matches backend ProductController @RequestMapping("/api/product")
 export async function fetchProductByBarcode(barcode: string) {
   if (!barcode) throw new Error("barcode required");
-  try {
-    const res = await client.get(`/api/product/barcode/${encodeURIComponent(barcode)}`);
-    return res.data?.data || res.data || null;
-  } catch (err: any) {
-    const msg = err?.response?.data?.message || err?.response?.data?.error || err?.message || "Failed to fetch product";
-    const e = new Error(msg);
-    (e as any).original = err;
-    throw e;
+  const base = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080";
+  const token = typeof window !== "undefined" ? localStorage.getItem("authToken") : null;
+
+  const url = `${base}/api/product/barcode/${encodeURIComponent(barcode)}`;
+  const res = await fetch(url, {
+    method: "GET",
+    headers: {
+      "Content-Type": "application/json",
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+  });
+
+  if (res.status === 404) {
+    return null; // caller can handle null as "not found"
   }
+  if (!res.ok) {
+    const body = await res.text().catch(() => null);
+    throw new Error(body || `HTTP ${res.status}`);
+  }
+  return await res.json();
 }
 
 export async function createBill(data: { order: any; items: any[] }) {
@@ -447,21 +459,20 @@ export async function fetchCategories() {
   return [];
 }
 
-// Named export: processPayment -> posts to backend payments/process
+// ...existing exports...
 export async function processPayment(payload: any) {
+  const base = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080";
+  const url = `${base}/api/payments/process`;
   const token = typeof window !== "undefined" ? localStorage.getItem("authToken") : null;
-  const res = await fetch(`${API_BASE}/api/payments/process`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
-    body: JSON.stringify(payload),
-  });
+  const headers: Record<string,string> = { "Content-Type": "application/json" };
+  if (token) headers["Authorization"] = `Bearer ${token}`;
+  const res = await fetch(url, { method: "POST", headers, body: JSON.stringify(payload) });
   if (!res.ok) {
-    const txt = await res.text().catch(() => null);
-    throw new Error(`Payment failed: ${res.status} ${txt ?? ""}`);
+    const err = await res.text().catch(()=>null);
+    throw new Error(err || `Payment failed ${res.status}`);
   }
-  return res.json().catch(() => ({}));
+  return res.json();
 }
-
 export default {
   fetchCurrentUser,
   fetchNotifications,

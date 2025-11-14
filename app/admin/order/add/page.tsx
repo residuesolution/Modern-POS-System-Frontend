@@ -159,77 +159,39 @@ export default function ProductListPage() {
   if (error) return <div className="text-red-700 text-center py-8">{error}</div>;
 
   return (
-    <div className="flex max-h-screen bg-gray-150">
-      <div className="flex-1 flex flex-col">
-        <TopNavBar user={user || { name: "Admin", role: "ADMIN" }} onSearch={() => {}} />
-        <main className="flex-1 p-6 mt-20">
-          <div className="max-w-6xl mx-auto space-y-6">
-            <div className="flex gap-30"> {/* Use Flexbox for horizontal layout */}
-              
-              {/* Product List */}
-              <div className="bg-white p-8 rounded shadow flex-23">
-                <h2 className="font-semibold text-lg mb-3">Products</h2>
-                <div className={`overflow-x-auto ${products.length > 3 ? "max-h-60 overflow-y-auto" : ""}`}>
-                  <table className="w-full text-sm">
-                    <thead>
-                      <tr className="text-left">
-                        <th className="py-2 px-2">ID</th>
-                        <th className="py-2">Name</th>
-                        <th className="py-2">SKU</th>
-                        <th className="py-2">Price</th>
-                        <th className="py-2 px-1">Stock</th>
-                        <th className="py-2">Actions</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {products.map((p) => (
-                        <tr key={p.id} className="border-t">
-                          <td className="py-2">{p.id}</td>
-                          <td className="py-2">{p.name}</td>
-                          <td className="py-2">{p.sku}</td>
-                          <td className="py-2">Rs. {p.price}</td>
-                          <td className="py-2">{p.stock}</td>
-                          <td className="py-2">
-                            <button onClick={() => router.push(`/admin/product/edit/${p.id}`)} className="text-blue-600 mr-3">Edit</button>
-                            <button onClick={() => handleDelete(p.id)} className="text-red-600">Delete</button>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
+  <div className="bg-white p-6 rounded-lg shadow flex-1 max-w-4xl mx-auto"> {/* Reduced width and added rounded corners */}
+  <h2 className="font-semibold text-lg mb-3">Products</h2>
+  <div className={`overflow-x-auto ${products.length > 3 ? "max-h-90 overflow-y-auto" : ""}`}>
+    <table className="w-full text-sm">
+      <thead>
+        <tr className="text-left">
+          <th className="py-2 px-2">ID</th>
+          <th className="py-2">Name</th>
+          <th className="py-2">SKU</th>
+          <th className="py-2">Price</th>
+          <th className="py-2 px-1">Stock</th>
+          <th className="py-2">Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        {products.map((p) => (
+          <tr key={p.id} className="border-t">
+            <td className="py-2">{p.id}</td>
+            <td className="py-2">{p.name}</td>
+            <td className="py-2">{p.sku}</td>
+            <td className="py-2">Rs. {p.price}</td>
+            <td className="py-2">{p.stock}</td>
+            <td className="py-2">
+              <button onClick={() => router.push(`/admin/product/edit/${p.id}`)} className="text-blue-600 mr-3">Edit</button>
+              <button onClick={() => handleDelete(p.id)} className="text-red-600">Delete</button>
+            </td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  </div>
+</div>
 
-              {/* Recent Orders */}
-              <div className="bg-white p-4 rounded shadow flex-12">
-                <h2 className="font-semibold text-lg mb-3">Recent Orders</h2>
-                {supplierOrdersLoading ? (
-                  <div className="text-xs text-blue-700">Loading orders...</div>
-                ) : supplierOrdersError ? (
-                  <div className="text-xs text-red-600">Error: {supplierOrdersError}</div>
-                ) : supplierOrders.length === 0 ? (
-                  <div className="text-xs text-gray-600">No orders found.</div>
-                ) : (
-                  <div className={`${supplierOrders.length > 3 ? "max-h-60 overflow-y-auto" : ""}`}>
-                    <ul className="space-y-2">
-                      {supplierOrders.slice(0, 10).map((o: any) => (
-                        <li key={o.id} className="p-4 border rounded flex items-center justify-between">
-                          <div>
-                            <div className="font-semibold">#{o.id} — {o.customer_id ? `Customer ${o.customer_id}` : "Walk-in"}</div>
-                            <div className="text-xs text-gray-600">Items: {o.items?.length ?? o.totalItems ?? 0}</div>
-                          </div>
-                          <div className="text-blue-800 font-semibold">Rs. {o.total_amount ?? o.totalAmount ?? 0}</div>
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                )}
-              </div>
 
-            </div> {/* End of flex container */}
-          </div>
-        </main>
-      </div>
-    </div>
   );
 }
