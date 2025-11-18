@@ -1,8 +1,7 @@
 'use client';
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import Sidebar from '@/components/Sidebar';
-import Header from '@/components/Header';
 import { fetchCurrentUser } from '@/services/authService';
 
 interface SupplierOrder {
@@ -35,7 +34,9 @@ const OrdersPage = () => {
   const [ordersError, setOrdersError] = useState('');
   const [user, setUser] = useState<User | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
+  const [listMaxHeight, setListMaxHeight] = useState<number | null>(null);
   const router = useRouter();
+  const firstCardRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     async function getUserAndOrders() {
@@ -59,11 +60,15 @@ const OrdersPage = () => {
         const apiUrl = process.env.NEXT_PUBLIC_API_URL || '';
         const authToken = typeof window !== 'undefined' ? localStorage.getItem('authToken') : null;
         const res = await fetch(`${apiUrl}/api/supplier-order`, {
-          headers: { Authorization: `Bearer ${authToken}` },
+          headers: authToken ? { Authorization: `Bearer ${authToken}` } : undefined,
         });
-        if (!res.ok) throw new Error('Failed to fetch orders');
+        if (!res.ok) {
+          const txt = await res.text().catch(() => "");
+          throw new Error(`Failed to fetch orders: ${res.status} ${txt}`);
+        }
         const data = await res.json();
-        setOrders(Array.isArray(data) ? data : []);
+        const list = Array.isArray(data) ? data : data?.data ?? data?.items ?? [];
+        setOrders(list);
       } catch (error) {
         setOrdersError(error instanceof Error ? error.message : 'An error occurred');
       } finally {
@@ -72,6 +77,22 @@ const OrdersPage = () => {
     }
     getUserAndOrders();
   }, [router]);
+
+  // After orders render, measure first card height and set max height = 2 * cardHeight + gap
+  useEffect(() => {
+    if (!firstCardRef.current) {
+      setListMaxHeight(null);
+      return;
+    }
+    // small delay to ensure layout settled
+    const id = window.setTimeout(() => {
+      const cardHeight = firstCardRef.current?.offsetHeight ?? 0;
+      const gap = 16; // Tailwind space-y-4 = 1rem = 16px between items
+      const max = cardHeight * 2 + gap;
+      setListMaxHeight(max);
+    }, 50);
+    return () => window.clearTimeout(id);
+  }, [orders]);
 
   // Filter orders based on search
   const filteredOrders = orders.filter((order) => {
@@ -92,15 +113,10 @@ const OrdersPage = () => {
     <div className="flex max-h-screen bg-gray-150">
       <Sidebar active="orders-view" />
       <div className="flex-1 flex flex-col">
-        <Header
-          user={user || { name: "Admin", role: "ADMIN" }}
-          searchTerm={searchTerm}
-          setSearchTerm={setSearchTerm}
-          active="report"
-        />
+        
         <main className="flex-1 ml">
           <div className="p-8">
-            <div className="bg-white rounded-2xl shadow-sm overflow-hidden">
+            <div className="bg-white rounded-2xl shadow-sm overflow-hidden w-200 h-130">
               <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
                 <div className="flex items-center space-x-3">
                   <div className="w-8 h-8 bg-blue-500 rounded-lg flex items-center justify-center">
@@ -125,11 +141,19 @@ const OrdersPage = () => {
                     <div className="text-sm">Try adjusting your search terms</div>
                   </div>
                 ) : (
-                  <div className="space-y-4">
+                  // container becomes scrollable once its content exceeds 2 cards
+                  <div
+                    className="space-y-4"
+                    style={{
+                      maxHeight: listMaxHeight ? `${listMaxHeight}px` : undefined,
+                      overflowY: listMaxHeight ? 'auto' : undefined,
+                    }}
+                  >
                     {filteredOrders.map((order, index) => {
                       const isDelivered = order.status?.toLowerCase().includes('delivered');
                       return (
                         <div
+                          ref={index === 0 ? firstCardRef : undefined}
                           key={order.orderId || order.id || index}
                           className={`border rounded-2xl p-4 transition-all hover:shadow-md w-full max-w-3xl mx-auto ${
                             isDelivered ? 'bg-blue-50 border-blue-200' : 'bg-gray-50 border-gray-200'
@@ -142,13 +166,6 @@ const OrdersPage = () => {
                                 #{order.orderId || order.id || `ORD${2450 + index + 1}`}
                               </div>
                             </div>
-                            {/* <div>
-                              <span className={`px-3 py-1 rounded-full text-xs font-medium ${
-                                isDelivered ? 'bg-blue-100 text-blue-700' : 'bg-gray-200 text-gray-700'
-                              }`}>
-                                {order.status || 'PENDING'}
-                              </span>
-                            </div> */}
                           </div>
                           <div className="space-y-2">
                             <div className="flex justify-between items-center">

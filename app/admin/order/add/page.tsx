@@ -1,197 +1,111 @@
 'use client';
-import React, { useEffect, useState, ChangeEvent } from "react";
+import React, { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import TopNavBar from "@/components/TopNavBar";
-import ProfileHeader from "@/components/ProfileHeader";
-import { fetchCurrentUser } from "@/services/authService";
 
-interface Product {
-  id: number;
-  name: string;
-  category_id: number;
-  sku: string;
-  price: number;
-  cost_price: number;
-  stock: number;
-  low_stock_alert_threshold: number;
-  image_url?: string;
-  status: boolean;
-}
+const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080";
 
-interface User {
-  role: string;
-  name?: string;
-  profilePhoto?: string;
-  [key: string]: any;
-}
-
-export default function ProductListPage() {
+export default function SupplierOrderAddPage() {
   const router = useRouter();
-  const [user, setUser] = useState<User | null>(null);
-  const [products, setProducts] = useState<Product[]>([]);
-  const [loading, setLoading] = useState<boolean>(true);
-  const [error, setError] = useState<string | null>(null);
-  const [supplierOrders, setSupplierOrders] = useState<any[]>([]);
-  const [supplierOrdersLoading, setSupplierOrdersLoading] = useState<boolean>(true);
-  const [supplierOrdersError, setSupplierOrdersError] = useState<string>("");
+  const [products, setProducts] = useState<any[]>([]);
+  const [productId, setProductId] = useState<number | "">("");
+  const [supplierName, setSupplierName] = useState("");
+  const [quantity, setQuantity] = useState<number>(1);
+  const [expectedDate, setExpectedDate] = useState<string>("");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
 
   useEffect(() => {
-    async function getUserAndProducts() {
-      setLoading(true);
-      setError(null);
+    (async () => {
       try {
-        const userData = await fetchCurrentUser();
-        const currentUser =
-          userData && typeof userData === "object" && "user" in userData && userData.user
-            ? userData.user
-            : userData && typeof userData === "object" && "data" in userData && userData.data
-            ? userData.data
-            : userData;
-        setUser(currentUser as User | null);
-
-        if (
-          !currentUser ||
-          typeof currentUser !== "object" ||
-          currentUser === null ||
-          !("role" in (currentUser as Record<string, any>)) ||
-          !["ADMIN", "MANAGER"].includes((currentUser as User).role)
-        ) {
-          router.replace("/unauthorized");
-          return;
-        }
-
-        // fetch products
-        const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080";
         const token = typeof window !== "undefined" ? localStorage.getItem("authToken") : null;
-        const headers: Record<string, string> = {};
-        if (token) headers["Authorization"] = `Bearer ${token}`;
-
-        const resp = await fetch(`${apiUrl}/api/product`, { headers });
-        if (!resp.ok) {
-          const txt = await resp.text().catch(() => "");
-          throw new Error(`Failed to fetch products: ${resp.status} ${txt}`);
-        }
-        const payload = await resp.json();
-        const list: any[] = Array.isArray(payload) ? payload : payload?.data ?? payload?.items ?? [];
-        setProducts(list.map((p: any) => ({
-          id: p.id,
-          name: p.name,
-          category_id: Number(p.category_id ?? p.categoryId ?? 0),
-          sku: p.sku,
-          price: Number(p.price ?? 0),
-          cost_price: Number(p.cost_price ?? p.costPrice ?? 0),
-          stock: Number(p.stock ?? 0),
-          low_stock_alert_threshold: Number(p.low_stock_alert_threshold ?? p.lowStockAlertThreshold ?? 0),
-          image_url: p.image_url ?? p.imageUrl ?? p.image,
-          status: p.status === true || p.status === "1" || p.status === 1,
-        })));
-      } catch (err: any) {
-        setError(err?.message || "Failed to load products.");
-      } finally {
-        setLoading(false);
+        const res = await fetch(`${API_BASE}/api/product`, {
+          headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+        });
+        const body = await res.json();
+        const list = Array.isArray(body) ? body : body?.data ?? body?.items ?? [];
+        setProducts(list);
+      } catch (e) {
+        console.error(e);
       }
-    }
-
-    getUserAndProducts();
-  }, [router]);
-
-  useEffect(() => {
-    async function fetchSupplierOrders() {
-      setSupplierOrdersLoading(true);
-      setSupplierOrdersError("");
-      try {
-        const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080";
-        const token = typeof window !== "undefined" ? localStorage.getItem("authToken") : null;
-        const headers: Record<string, string> = { "Content-Type": "application/json" };
-        if (token) headers["Authorization"] = `Bearer ${token}`;
-
-        const res = await fetch(`${apiUrl}/api/orders`, { headers });
-        if (!res.ok) {
-          let serverMsg = "";
-          try {
-            const json = await res.json();
-            serverMsg = JSON.stringify(json);
-          } catch {
-            serverMsg = await res.text().catch(() => "");
-          }
-          throw new Error(`Server responded ${res.status}: ${serverMsg}`);
-        }
-        const data = await res.json();
-        const list = Array.isArray(data) ? data : data?.data ?? data?.items ?? [];
-        setSupplierOrders(list);
-      } catch (err: any) {
-        console.error("fetchSupplierOrders error:", err);
-        setSupplierOrdersError(err?.message || "Failed to fetch supplier orders.");
-      } finally {
-        setSupplierOrdersLoading(false);
-      }
-    }
-
-    fetchSupplierOrders();
+    })();
   }, []);
 
-  const handleDelete = async (id: number) => {
-    if (!window.confirm("Are you sure you want to delete this product?")) return;
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError("");
+    if (!productId || !supplierName || !expectedDate || quantity <= 0) {
+      setError("Please fill all fields.");
+      return;
+    }
+    setLoading(true);
     try {
-      setLoading(true);
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080";
-      const token = typeof window !== "undefined" ? localStorage.getItem("authToken") : null;
-      const headers: Record<string, string> = {};
-      if (token) headers["Authorization"] = `Bearer ${token}`;
+      // Send expectedDelivery as yyyy-MM-dd (value from <input type="date">)
+      // and nested itemOrdered object that matches backend DTO
+      const payload = {
+        supplierName,
+        expectedDelivery: expectedDate,
+        itemOrdered: {
+          productId: Number(productId),
+          quantity,
+          productName: products.find(p => Number(p.id) === Number(productId))?.name ?? ""
+        }
+      };
 
-      const res = await fetch(`${apiUrl}/api/product/${id}`, {
-        method: "DELETE",
-        headers,
+      const token = typeof window !== "undefined" ? localStorage.getItem("authToken") : null;
+      const res = await fetch(`${API_BASE}/api/supplier-order/add`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify(payload),
       });
       if (!res.ok) {
         const txt = await res.text().catch(() => "");
-        throw new Error(`Delete failed: ${res.status} ${txt}`);
+        throw new Error(`Failed to create supplier order: ${res.status} ${txt}`);
       }
-      setProducts((prev) => prev.filter((p) => p.id !== id));
+      router.push("/admin/order/view");
     } catch (err: any) {
-      setError(err?.message || "Failed to delete product.");
+      setError(err?.message || "Failed");
     } finally {
       setLoading(false);
     }
   };
 
-  if (loading) return <div className="text-blue-700 text-center py-8">Loading...</div>;
-  if (error) return <div className="text-red-700 text-center py-8">{error}</div>;
-
   return (
-  <div className="bg-white p-6 rounded-lg shadow flex-1 max-w-4xl mx-auto"> {/* Reduced width and added rounded corners */}
-  <h2 className="font-semibold text-lg mb-3">Products</h2>
-  <div className={`overflow-x-auto ${products.length > 3 ? "max-h-90 overflow-y-auto" : ""}`}>
-    <table className="w-full text-sm">
-      <thead>
-        <tr className="text-left">
-          <th className="py-2 px-2">ID</th>
-          <th className="py-2">Name</th>
-          <th className="py-2">SKU</th>
-          <th className="py-2">Price</th>
-          <th className="py-2 px-1">Stock</th>
-          <th className="py-2">Actions</th>
-        </tr>
-      </thead>
-      <tbody>
-        {products.map((p) => (
-          <tr key={p.id} className="border-t">
-            <td className="py-2">{p.id}</td>
-            <td className="py-2">{p.name}</td>
-            <td className="py-2">{p.sku}</td>
-            <td className="py-2">Rs. {p.price}</td>
-            <td className="py-2">{p.stock}</td>
-            <td className="py-2">
-              <button onClick={() => router.push(`/admin/product/edit/${p.id}`)} className="text-blue-600 mr-3">Edit</button>
-              <button onClick={() => handleDelete(p.id)} className="text-red-600">Delete</button>
-            </td>
-          </tr>
-        ))}
-      </tbody>
-    </table>
-  </div>
-</div>
+    <div className="max-w-2xl mx-auto p-6 bg-white rounded shadow">
+      <h2 className="text-lg font-semibold mb-4">Create Supplier Order</h2>
+      <form onSubmit={handleSubmit} className="space-y-4">
+        <div>
+          <label className="block text-sm font-medium">Product</label>
+          <select value={productId} onChange={(e) => setProductId(Number(e.target.value) || "")} className="mt-1 w-full border rounded px-2 py-1" required>
+            <option value="">Select product</option>
+            {products.map(p => <option key={p.id} value={p.id}>{p.name} {p.sku ? `(${p.sku})` : ""}</option>)}
+          </select>
+        </div>
+        <div>
+          <label className="block text-sm font-medium">Supplier name</label>
+          <input value={supplierName} onChange={(e) => setSupplierName(e.target.value)} className="mt-1 w-full border rounded px-2 py-1" required />
+        </div>
+        <div className="grid grid-cols-2 gap-4">
+          <div>
+            <label className="block text-sm font-medium">Quantity</label>
+            <input type="number" min={1} value={quantity} onChange={(e) => setQuantity(Number(e.target.value))} className="mt-1 w-full border rounded px-2 py-1" required />
+          </div>
+          <div>
+            <label className="block text-sm font-medium">Delivery date</label>
+            <input type="date" value={expectedDate} onChange={(e) => setExpectedDate(e.target.value)} className="mt-1 w-full border rounded px-2 py-1" required />
+          </div>
+        </div>
 
+        {error && <div className="text-red-600">{error}</div>}
 
+        <div className="text-right">
+          <button type="submit" disabled={loading} className="px-4 py-2 bg-blue-600 text-white rounded">
+            {loading ? "Creating..." : "Create Order"}
+          </button>
+        </div>
+      </form>
+    </div>
   );
 }

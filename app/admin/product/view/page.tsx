@@ -142,7 +142,7 @@ const ProductListPage = () => {
     }
     getUserAndProducts();
 
-    // Fetch supplier orders (unchanged)
+    // Fetch supplier orders
     async function fetchSupplierOrders() {
       setSupplierOrdersLoading(true);
       setSupplierOrdersError("");
@@ -150,11 +150,15 @@ const ProductListPage = () => {
         const apiUrl = process.env.NEXT_PUBLIC_API_URL || '';
         const authToken = typeof window !== 'undefined' ? localStorage.getItem('authToken') : null;
         const res = await fetch(`${apiUrl}/api/supplier-order`, {
-          headers: { Authorization: `Bearer ${authToken}` },
+          headers: authToken ? { Authorization: `Bearer ${authToken}` } : undefined,
         });
-        if (!res.ok) throw new Error('Failed to fetch supplier orders');
+        if (!res.ok) {
+          const txt = await res.text().catch(() => "");
+          throw new Error(`Failed to fetch supplier orders: ${res.status} ${txt}`);
+        }
         const data = await res.json();
-        setSupplierOrders(Array.isArray(data) ? data : []);
+        const list = Array.isArray(data) ? data : data?.data ?? data?.items ?? [];
+        setSupplierOrders(list);
       } catch (error) {
         setSupplierOrdersError(error instanceof Error ? error.message : 'An error occurred');
       } finally {
@@ -174,11 +178,12 @@ const ProductListPage = () => {
       const authToken = typeof window !== 'undefined' ? localStorage.getItem('authToken') : null;
       const res = await fetch(`${apiUrl}/api/product/${id}`, {
         method: 'DELETE',
-        headers: {
-          Authorization: `Bearer ${authToken}`,
-        },
+        headers: authToken ? { Authorization: `Bearer ${authToken}` } : undefined,
       });
-      if (!res.ok) throw new Error('Failed to delete product');
+      if (!res.ok) {
+        const txt = await res.text().catch(() => "");
+        throw new Error(`Failed to delete product: ${res.status} ${txt}`);
+      }
       setProducts((prev) => prev.filter((p) => p.id !== id));
     } catch (error) {
       setError(error instanceof Error ? error.message : 'An error occurred');
@@ -243,7 +248,9 @@ const ProductListPage = () => {
                     ) : (
                       <div className="space-y-4">
                          <div className="max-h-80 overflow-y-auto">
-                        {filteredProducts.map((product) => (
+                        {filteredProducts.map((product) => {
+                          const ordersForProduct = supplierOrders.filter(o => (o.productId ?? o.product_id) == product.id);
+                          return (
                           <div 
                             key={product.id} 
                             className="flex items-center justify-between p-4 bg-gray-50 rounded-xl hover:bg-gray-100 transition-colors"
@@ -282,6 +289,18 @@ const ProductListPage = () => {
                                   <span>Cost: <span className="font-medium text-gray-900">${formatPrice(product.cost_price)}</span></span>
                                   <span>Category: <span className="font-medium text-gray-900">{product.category_name ?? product.category_id}</span></span>
                                 </div>
+
+                                {/* show recent orders for this product */}
+                                {ordersForProduct.length > 0 && (
+                                  <div className="mt-2 text-xs text-gray-600">
+                                    <div className="font-medium text-sm">Supplier orders:</div>
+                                    {ordersForProduct.slice(0,3).map((o, i) => (
+                                      <div key={i} className="text-xs">
+                                        {(o.supplierName || o.supplier || 'Unknown')} — {o.quantity || 0} — {(o.expectedDelivery || o.expected_date || o.deliveryDate || '').slice(0,10) || 'TBD'}
+                                      </div>
+                                    ))}
+                                  </div>
+                                )}
                               </div>
                             </div>
 
@@ -326,7 +345,8 @@ const ProductListPage = () => {
                               </div>
                             </div>
                           </div>
-                        ))}
+                          );
+                        })}
                         </div>
                       </div>
                     )}

@@ -181,52 +181,63 @@ export default function Dashboard() {
   }, []);
 
   // Helper to refresh orders and normalize counts & totals
-  async function refreshOrders() {
-    try {
-      setLoading(true);
-      const oResp = await fetchWithToken("/api/orders").catch(() => null);
-      const ordersList: any[] = oResp?.data || oResp || [];
+ async function refreshOrders() {
+  try {
+    setLoading(true);
+    const oResp = await fetchWithToken("/api/orders").catch(() => null);
+    const ordersList: any[] = oResp?.data || oResp || [];
 
-      const selected = ordersList?.length ? ordersList.slice().reverse().slice(0, 20) : [];
+    const selected = ordersList?.length ? ordersList.slice().reverse().slice(0, 20) : [];
 
-      const detailPromises = selected.map((o: any) =>
-        (o.items || o.order_items || o.total_amount || o.totalAmount)
-          ? Promise.resolve(o)
-          : fetchWithToken(`/api/orders/${o.id}`).catch(() => null)
-      );
+    const detailPromises = selected.map((o: any) =>
+      (o.items || o.order_items || o.total_amount || o.totalAmount)
+        ? Promise.resolve(o)
+        : fetchWithToken(`/api/orders/${o.id}`).catch(() => null)
+    );
 
-      const detailsResults = await Promise.allSettled(detailPromises);
+    const detailsResults = await Promise.allSettled(detailPromises);
 
-      const mappedOrders: OrderSummary[] = selected.map((orig: any, idx: number) => {
-        const dr = detailsResults[idx];
-        let orderObj: any = null;
-        if (dr.status === "fulfilled") {
-          orderObj = dr.value?.data || dr.value || orig;
-        } else {
-          orderObj = orig;
-        }
+    const mappedOrders: OrderSummary[] = selected.map((orig: any, idx: number) => {
+      const dr = detailsResults[idx];
+      let orderObj: any = null;
+      if (dr.status === "fulfilled") {
+        orderObj = dr.value?.data || dr.value || orig;
+      } else {
+        orderObj = orig;
+      }
 
-        const itemsArr = orderObj.items || orderObj.order_items || orderObj.line_items || [];
-        const totalItems = orderObj.totalItems ?? orderObj.total_items ?? (Array.isArray(itemsArr) ? itemsArr.reduce((s: number, it: any) => s + (Number(it.quantity ?? it.qty ?? 1) || 0), 0) : 0);
-        const totalAmount = orderObj.totalAmount ?? orderObj.total_amount ?? (Array.isArray(itemsArr) ? itemsArr.reduce((s: number, it: any) => s + ((Number(it.unit_price ?? it.price ?? it.unitPrice) || 0) * (Number(it.quantity ?? it.qty ?? 1) || 0)), 0) : 0);
+      const itemsArr = orderObj.items || orderObj.order_items || orderObj.line_items || [];
+      const totalItems = orderObj.totalItems ?? orderObj.total_items ?? (Array.isArray(itemsArr) ? itemsArr.reduce((s: number, it: any) => s + (Number(it.quantity ?? it.qty ?? 1) || 0), 0) : 0);
 
-        return {
-          id: orig.id ?? orig.orderId,
-          customerName: orig.customerName ?? (orig.customer && orig.customer.name) ?? `#${orig.id}`,
-          totalItems,
-          totalAmount,
-          created_at: orig.created_at ?? orig.createdAt ?? new Date().toISOString(),
-        };
-      });
+      // compute subtotal from items when backend doesn't provide totals
+      const subtotal = orderObj.subtotal ?? orderObj.total_amount ?? orderObj.totalAmount ?? (Array.isArray(itemsArr) ? itemsArr.reduce((s: number, it: any) => s + ((Number(it.unit_price ?? it.price ?? it.unitPrice) || 0) * (Number(it.quantity ?? it.qty ?? 1) || 0)), 0) : 0);
+      const discount = Math.round(subtotal * 0.10); // 10%
+      const discounted = subtotal - discount;
+      const tax = Math.round(discounted * 0.15); // 15% on discounted amount
+      const totalAmount = Math.round(discounted + tax);
 
-      setRecentOrders(mappedOrders);
-      setExpandedOrders({});
-    } catch (e) {
-      console.error("refreshOrders failed", e);
-    } finally {
-      setLoading(false);
-    }
+      return {
+        id: orig.id ?? orig.orderId,
+        customerName: orig.customerName ?? (orig.customer && orig.customer.name) ?? `#${orig.id}`,
+        totalItems,
+        // attach computed fields (used by UI)
+        totalAmount,
+        subtotal,
+        discount,
+        tax,
+        created_at: orig.created_at ?? orig.createdAt ?? new Date().toISOString(),
+      };
+    });
+
+    setRecentOrders(mappedOrders);
+    setExpandedOrders({});
+  } catch (e) {
+    console.error("refreshOrders failed", e);
+  } finally {
+    setLoading(false);
   }
+}
+
 
   useEffect(() => {
     let mounted = true;
@@ -609,38 +620,45 @@ export default function Dashboard() {
   }, [visibleProducts, recentOrders]);
 
   // Toggle order details: fetch on demand and update recentOrders summary
-  async function toggleOrderDetails(id?: number | string) {
-    if (!id) return;
-    const key = String(id);
-    if (expandedOrders[key]) {
-      setExpandedOrders((prev) => {
-        const next = { ...prev };
-        delete next[key];
-        return next;
-      });
+ async function toggleOrderDetails(id?: number | string) {
+  if (!id) return;
+  const key = String(id);
+  if (expandedOrders[key]) {
+    setExpandedOrders((prev) => {
+      const next = { ...prev };
+      delete next[key];
+      return next;
+    });
+    return;
+  }
+
+  try {
+    const resp = await fetchWithToken(`/api/orders/${id}`).catch(() => null);
+    const orderObj = resp?.data || resp || null;
+    if (!orderObj) {
+      setExpandedOrders((prev) => ({ ...prev, [key]: { items: [] } }));
       return;
     }
 
-    try {
-      const resp = await fetchWithToken(`/api/orders/${id}`).catch(() => null);
-      const orderObj = resp?.data || resp || null;
-      if (!orderObj) {
-        setExpandedOrders((prev) => ({ ...prev, [key]: { items: [] } }));
-        return;
-      }
+    const items = orderObj.items || orderObj.order_items || orderObj.line_items || [];
+    const totalItems = items.length ? items.reduce((s: number, it: any) => s + (Number(it.quantity ?? it.qty ?? 1) || 0), 0) : (orderObj.totalItems ?? orderObj.total_items ?? 0);
 
-      const items = orderObj.items || orderObj.order_items || orderObj.line_items || [];
-      const totalItems = items.length ? items.reduce((s: number, it: any) => s + (Number(it.quantity ?? it.qty ?? 1) || 0), 0) : (orderObj.totalItems ?? orderObj.total_items ?? 0);
-      const totalAmount = orderObj.totalAmount ?? orderObj.total_amount ?? (items.length ? items.reduce((s: number, it: any) => s + ((Number(it.unit_price ?? it.price ?? it.unitPrice) || 0) * (Number(it.quantity ?? it.qty ?? 1) || 0)), 0) : 0);
+    // compute subtotal / discount / tax / total from the detailed order
+    const subtotal = orderObj.subtotal ?? orderObj.total_amount ?? orderObj.totalAmount ?? (items.length ? items.reduce((s: number, it: any) => s + ((Number(it.unit_price ?? it.price ?? it.unitPrice) || 0) * (Number(it.quantity ?? it.qty ?? 1) || 0)), 0) : 0);
+    const discount = Math.round(subtotal * 0.10);
+    const discounted = subtotal - discount;
+    const tax = Math.round(discounted * 0.15);
+    const totalAmount = Math.round(discounted + tax);
 
-      setExpandedOrders((prev) => ({ ...prev, [key]: { ...orderObj, items, totalItems, totalAmount } }));
+    setExpandedOrders((prev) => ({ ...prev, [key]: { ...orderObj, items, totalItems, totalAmount, subtotal, discount, tax } }));
 
-      setRecentOrders((prev) => prev.map((o) => (String(o.id) === key ? { ...o, totalItems, totalAmount } : o)));
-    } catch (err) {
-      console.error("Failed to load order details", err);
-      setExpandedOrders((prev) => ({ ...prev, [key]: { items: [] } }));
-    }
+    setRecentOrders((prev) => prev.map((o) => (String(o.id) === key ? { ...o, totalItems, totalAmount } : o)));
+  } catch (err) {
+    console.error("Failed to load order details", err);
+    setExpandedOrders((prev) => ({ ...prev, [key]: { items: [] } }));
   }
+}
+// ...existing code...
 
   const groupedOrders = useMemo(() => {
     const groups: Record<string, OrderSummary[]> = {};

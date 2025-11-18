@@ -14,29 +14,30 @@ interface AuthResponse {
 }
 
 // --- helper functions (existing exports) ---
+
 export async function emailOrderReceipt(orderId: number, email?: string) {
   const body = email ? { email } : {};
-  const res = await client.post(`/api/orders/email/${orderId}`, body);
+  const res = await client.post(`${apiConfig.endpoints.orders.EMAIL}${orderId}`, body);
   return res.data;
 }
 
 export async function smsOrderReceipt(orderId: number, phone: string) {
-  const res = await client.post(`/api/orders/sms/${orderId}`, { phone });
+  const res = await client.post(`${apiConfig.endpoints.orders.SMS}${orderId}`, { phone });
   return res.data;
 }
 
 export async function printOrderReceipt(orderId: number) {
-  const res = await client.post(`/api/orders/print/${orderId}`);
+  const res = await client.post(`${apiConfig.endpoints.orders.PRINT}${orderId}`);
   return res.data;
 }
 
 export async function holdOrder(orderId: number) {
-  const res = await client.post(`/api/orders/hold/${orderId}`);
+  const res = await client.post(`${apiConfig.endpoints.orders.HOLD}${orderId}`);
   return res.data;
 }
 
 export async function voidOrder(orderId: number) {
-  const res = await client.post(`/api/orders/void/${orderId}`);
+  const res = await client.post(`${apiConfig.endpoints.orders.VOID}${orderId}`);
   return res.data;
 }
 
@@ -112,7 +113,6 @@ export const resetPassword = async (token: string, password: string) => {
   return response.data;
 };
 
-// WebAuthn helpers...
 export const getWebAuthnRegistrationOptions = async (email: string) => {
   const response = await axios.post(
     `${API_BASE_URL}${apiConfig.endpoints.auth.WEBAUTHN_REGISTER_OPTIONS}`,
@@ -238,8 +238,8 @@ export const sendHelpFeedback = async ({
 // Search, product by barcode, createBill (kept, with binary handling)
 export async function searchProducts(query: string) {
   if (!query || !query.trim()) return [];
-  const base = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080";
-  const url = `${base}/api/product/search?q=${encodeURIComponent(query)}`;
+  const base = API_BASE;
+  const url = `${base}${apiConfig.endpoints.product.SEARCH}?q=${encodeURIComponent(query)}`;
 
   const token = typeof window !== "undefined" ? localStorage.getItem("authToken") : null;
   const headers: Record<string, string> = { Accept: "application/json" };
@@ -266,8 +266,8 @@ export async function searchProducts(query: string) {
 
 export async function searchOrders(query: string) {
   if (!query || !query.trim()) return [];
-  const base = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080";
-  const url = `${base}/api/order/search?q=${encodeURIComponent(query)}`;
+  const base = API_BASE;
+  const url = `${base}${apiConfig.endpoints.orders.SEARCH}?q=${encodeURIComponent(query)}`;
 
   const token = typeof window !== "undefined" ? localStorage.getItem("authToken") : null;
   const headers: Record<string, string> = { Accept: "application/json" };
@@ -297,13 +297,13 @@ export async function fetchNotifications() {
   return res.data;
 }
 
-// export named fetchProductByBarcode (fixed) — matches backend ProductController @RequestMapping("/api/product")
+// fetchProductByBarcode — use config endpoint
 export async function fetchProductByBarcode(barcode: string) {
   if (!barcode) throw new Error("barcode required");
-  const base = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080";
+  const base = API_BASE;
   const token = typeof window !== "undefined" ? localStorage.getItem("authToken") : null;
 
-  const url = `${base}/api/product/barcode/${encodeURIComponent(barcode)}`;
+  const url = `${base}${apiConfig.endpoints.product.BARCODE}${encodeURIComponent(barcode)}`;
   const res = await fetch(url, {
     method: "GET",
     headers: {
@@ -323,7 +323,7 @@ export async function fetchProductByBarcode(barcode: string) {
 }
 
 export async function createBill(data: { order: any; items: any[] }) {
-  const res = await client.post("/api/orders/add", data, { responseType: "arraybuffer", timeout: 60000 });
+  const res = await client.post(`${apiConfig.endpoints.orders.ADD}`, data, { responseType: "arraybuffer", timeout: 60000 });
   const contentType = (res.headers && (res.headers["content-type"] || res.headers["Content-Type"]))?.toLowerCase() || "";
   const raw = res.data as ArrayBuffer | Uint8Array;
   const arr = raw instanceof ArrayBuffer ? new Uint8Array(raw) : new Uint8Array(raw);
@@ -445,7 +445,7 @@ export async function deleteFace(email: string) {
 
 // categories
 export async function fetchCategories() {
-  const base = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080";
+  const base = API_BASE;
   const url = `${base}/api/category`;
   const token = typeof window !== "undefined" ? localStorage.getItem("authToken") : null;
   const headers: Record<string, string> = { Accept: "application/json" };
@@ -461,8 +461,8 @@ export async function fetchCategories() {
 
 // ...existing exports...
 export async function processPayment(payload: any) {
-  const base = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080";
-  const url = `${base}/api/payments/process`;
+  const base = API_BASE;
+  const url = `${base}${apiConfig.endpoints.payments.PROCESS}`;
   const token = typeof window !== "undefined" ? localStorage.getItem("authToken") : null;
   const headers: Record<string,string> = { "Content-Type": "application/json" };
   if (token) headers["Authorization"] = `Bearer ${token}`;
@@ -473,6 +473,7 @@ export async function processPayment(payload: any) {
   }
   return res.json();
 }
+
 export default {
   fetchCurrentUser,
   fetchNotifications,
@@ -486,5 +487,5 @@ export default {
   searchProducts,
   searchOrders,
   fetchCategories,
-  processPayment, // include named helper in default export for convenience
+  processPayment,
 };
