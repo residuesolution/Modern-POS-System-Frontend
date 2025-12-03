@@ -3,7 +3,7 @@
 
 import React from "react";
 import Link from "next/link";
-import CashierSidebar from "../../../components/CashierSidebar";
+
 
 export default function CashierDashboardPage() {
   const userRaw =
@@ -12,9 +12,9 @@ export default function CashierDashboardPage() {
 
   return (
     <div className="min-h-screen flex bg-gray-50">
-      <aside className="w-64 border-r bg-white">
+{/*       <aside className="w-64 border-r bg-white">
         <CashierSidebar active="" />
-      </aside>
+      </aside> */}
 
       <main className="flex-1 p-6">
         <header className="mb-6">
