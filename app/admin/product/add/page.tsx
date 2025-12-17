@@ -1,4 +1,5 @@
 'use client';
+
 import React, { useState, ChangeEvent, FormEvent, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import ProfileHeader from "@/components/ProfileHeader";
@@ -11,18 +12,22 @@ type User = {
   [key: string]: any;
 };
 
+interface Category {
+  category_id: number;
+  category_name: string;
+  description?: string;
+}
+
 interface ProductForm {
   name: string;
   category_id: string;
-  category_name: string; // Add category_name
+  category_name: string;
   sku: string;
   price: string;
   cost_price: string;
   stock: string;
   low_stock_alert_threshold: string;
   status: boolean;
-  image_file?: File;
-  image_preview?: string;
 }
 
 export default function AddProductPage() {
@@ -32,13 +37,8 @@ export default function AddProductPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
-
-  const [categories, setCategories] = useState([
-    { id: "1", name: "Electronics" },
-    { id: "2", name: "Clothing" },
-    { id: "3", name: "Books" },
-    { id: "4", name: "Food" },
-  ]);
+  const [categoriesLoading, setCategoriesLoading] = useState(true);
+  const [categories, setCategories] = useState<Category[]>([]);
 
   const [formData, setFormData] = useState<ProductForm>({
     name: "",
@@ -50,23 +50,40 @@ export default function AddProductPage() {
     stock: "",
     low_stock_alert_threshold: "",
     status: true,
-    image_file: undefined,
-    image_preview: "",
   });
 
-  // Fetch user
   useEffect(() => {
     (async () => {
       try {
         const userData = await fetchCurrentUser();
-        const currentUser = userData?.user || userData?.data || userData || null;
+        const currentUser = (userData as any)?.user || (userData as any)?.data || userData || null;
         setUser(currentUser as User | null);
 
         if (!currentUser || !["ADMIN", "MANAGER", "CASHIER"].includes(currentUser.role)) {
           router.replace("/unauthorized");
+          return;
         }
-      } catch {
+
+        const authToken = localStorage.getItem("authToken");
+        const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080";
+
+        const catRes = await fetch(`${apiUrl}/api/category`, {
+          headers: authToken ? { Authorization: `Bearer ${authToken}` } : undefined,
+        });
+
+        if (catRes.ok) {
+          const catData = await catRes.json();
+          const catList = Array.isArray(catData) ? catData : catData?.data || catData?.items || [];
+          setCategories(catList);
+        } else {
+          console.error("Failed to fetch categories");
+          setCategories([]);
+        }
+      } catch (err) {
+        console.error("Error fetching user or categories:", err);
         router.replace("/unauthorized");
+      } finally {
+        setCategoriesLoading(false);
       }
     })();
   }, [router]);
@@ -78,22 +95,10 @@ export default function AddProductPage() {
     setFormData((prev) => ({
       ...prev,
       [name]: type === "checkbox" ? checked : value,
-      // Automatically set category_name when category_id changes
       ...(name === "category_id"
-        ? { category_name: categories.find((c) => c.id === value)?.name || "" }
+        ? { category_name: categories.find((c) => String(c.category_id) === value)?.category_name || "" }
         : {}),
     }));
-  };
-
-  const handleFileChange = (e: ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      setFormData((prev) => ({
-        ...prev,
-        image_file: file,
-        image_preview: URL.createObjectURL(file),
-      }));
-    }
   };
 
   const handleSubmit = async (e: FormEvent) => {
@@ -103,26 +108,28 @@ export default function AddProductPage() {
     setSuccess("");
 
     try {
-      const token = localStorage.getItem("authToken"); // JWT token stored after login
+      const token = localStorage.getItem("authToken");
       if (!token) throw new Error("User not authenticated");
 
       const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080";
-      const body = new FormData();
-      body.append("name", formData.name);
-      body.append("category_id", formData.category_id);
-      body.append("category_name", formData.category_name); // send category_name
-      body.append("sku", formData.sku);
-      body.append("price", formData.price);
-      body.append("cost_price", formData.cost_price);
-      body.append("stock", formData.stock);
-      body.append("low_stock_alert_threshold", formData.low_stock_alert_threshold);
-      body.append("status", formData.status ? "true" : "false");
-      if (formData.image_file) body.append("image", formData.image_file);
+      
+      const body = JSON.stringify({
+        name: formData.name,
+        category_id: parseInt(formData.category_id),
+        category_name: formData.category_name,
+        sku: formData.sku,
+        price: parseFloat(formData.price),
+        cost_price: parseFloat(formData.cost_price),
+        stock: parseInt(formData.stock),
+        low_stock_alert_threshold: parseInt(formData.low_stock_alert_threshold) || 0,
+        status: formData.status,
+      });
 
       const res = await fetch(`${apiUrl}/api/product/add`, {
         method: "POST",
         headers: {
-          Authorization: `Bearer ${token}`, // Important for 401
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
         },
         body,
       });
@@ -144,7 +151,7 @@ export default function AddProductPage() {
   if (!user) return <div className="p-8 text-blue-600">Loading...</div>;
 
   return (
-    <div className="flex min-h-screen bg-gray-50">
+    <div className="flex min-h-screen bg-50">
       <main className="flex-1 p-8">
         <ProfileHeader name={user.name} role={user.role} profilePhoto={user.profilePhoto} />
 
@@ -164,29 +171,38 @@ export default function AddProductPage() {
                   value={formData.name}
                   onChange={handleChange}
                   required
-                  className="w-full border border-gray-300 p-2 rounded-md"
+                  className="w-full border border-gray-300 p-2 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
               </div>
               <div>
                 <label className="block text-sm font-medium mb-1">Category</label>
-                <select
-                  name="category_id"
-                  value={formData.category_id}
-                  onChange={handleChange}
-                  required
-                  className="w-full border border-gray-300 p-2 rounded-md"
-                >
-                  <option value="">Select Category</option>
-                  {categories.map((c) => (
-                    <option key={c.id} value={c.id}>
-                      {c.id} - {c.name}
-                    </option>
-                  ))}
-                </select>
+                {categoriesLoading ? (
+                  <div className="w-full border border-gray-300 p-2 rounded-md bg-gray-100 text-gray-500">
+                    Loading categories...
+                  </div>
+                ) : categories.length === 0 ? (
+                  <div className="w-full border border-gray-300 p-2 rounded-md bg-red-50 text-red-600 text-sm">
+                    No categories available. <a href="/admin/category/add" className="underline font-bold">Add one</a>
+                  </div>
+                ) : (
+                  <select
+                    name="category_id"
+                    value={formData.category_id}
+                    onChange={handleChange}
+                    required
+                    className="w-full border border-gray-300 p-2 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  >
+                    <option value="">Select Category</option>
+                    {categories.map((c) => (
+                      <option key={c.category_id} value={String(c.category_id)}>
+                        {c.category_name}
+                      </option>
+                    ))}
+                  </select>
+                )}
               </div>
             </div>
 
-            {/* SKU, price, stock, etc. */}
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <label className="block text-sm font-medium mb-1">SKU</label>
@@ -196,7 +212,7 @@ export default function AddProductPage() {
                   value={formData.sku}
                   onChange={handleChange}
                   required
-                  className="w-full border border-gray-300 p-2 rounded-md"
+                  className="w-full border border-gray-300 p-2 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
               </div>
               <div>
@@ -208,7 +224,7 @@ export default function AddProductPage() {
                   onChange={handleChange}
                   step="0.01"
                   required
-                  className="w-full border border-gray-300 p-2 rounded-md"
+                  className="w-full border border-gray-300 p-2 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
               </div>
               <div>
@@ -220,7 +236,7 @@ export default function AddProductPage() {
                   onChange={handleChange}
                   step="0.01"
                   required
-                  className="w-full border border-gray-300 p-2 rounded-md"
+                  className="w-full border border-gray-300 p-2 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
               </div>
               <div>
@@ -231,7 +247,7 @@ export default function AddProductPage() {
                   value={formData.stock}
                   onChange={handleChange}
                   required
-                  className="w-full border border-gray-300 p-2 rounded-md"
+                  className="w-full border border-gray-300 p-2 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
               </div>
               <div>
@@ -241,37 +257,8 @@ export default function AddProductPage() {
                   name="low_stock_alert_threshold"
                   value={formData.low_stock_alert_threshold}
                   onChange={handleChange}
-                  className="w-full border border-gray-300 p-2 rounded-md"
+                  className="w-full border border-gray-300 p-2 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
-              </div>
-            </div>
-
-            {/* Image */}
-            <div>
-              <label className="block text-sm font-medium mb-2">Product Image</label>
-              <div className="border-2 border-dashed border-gray-300 p-6 rounded-md text-center relative bg-gray-50">
-                {!formData.image_preview ? (
-                  <>
-                    <p className="text-gray-500">Click to upload image</p>
-                    <input
-                      type="file"
-                      accept="image/*"
-                      onChange={handleFileChange}
-                      className="absolute top-0 left-0 w-full h-full opacity-0 cursor-pointer"
-                    />
-                  </>
-                ) : (
-                  <div className="relative inline-block">
-                    <img src={formData.image_preview} alt="Preview" className="max-h-40 mx-auto rounded-lg" />
-                    <button
-                      type="button"
-                      onClick={() => setFormData((prev) => ({ ...prev, image_preview: "", image_file: undefined }))}
-                      className="absolute top-0 right-0 bg-red-500 text-white rounded-full w-6 h-6"
-                    >
-                      ×
-                    </button>
-                  </div>
-                )}
               </div>
             </div>
 
@@ -281,16 +268,18 @@ export default function AddProductPage() {
                 name="status"
                 checked={formData.status}
                 onChange={handleChange}
-                className="w-5 h-5"
+                className="w-5 h-5 cursor-pointer"
               />
-              <label className="text-sm">Product is Active</label>
+              <label className="text-sm cursor-pointer">Product is Active</label>
             </div>
 
             <div className="flex gap-3">
               <button
                 type="submit"
-                disabled={loading}
-                className={`flex-1 py-3 rounded-md text-white font-semibold ${loading ? "bg-gray-400" : "bg-green-600 hover:bg-green-700"}`}
+                disabled={loading || categoriesLoading}
+                className={`flex-1 py-3 rounded-md text-white font-semibold ${
+                  loading || categoriesLoading ? "bg-gray-400 cursor-not-allowed" : "bg-green-600 hover:bg-green-700"
+                }`}
               >
                 {loading ? "⏳ Saving..." : "💾 Save Product"}
               </button>

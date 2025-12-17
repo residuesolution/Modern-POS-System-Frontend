@@ -1,7 +1,7 @@
 "use client";
 
-import { useState } from "react";
-import NotificationBell from "./NotificationBell";
+import { useState, useEffect } from "react";
+import Link from "next/link";
 import ProfileHeader from "./ProfileHeader";
 
 export default function TopNavBar({
@@ -16,13 +16,57 @@ export default function TopNavBar({
   onCreateBill?: () => void;
 }) {
   const [search, setSearch] = useState("");
+  const [notificationCount, setNotificationCount] = useState(0);
+
+  // 🔔 FETCH NOTIFICATIONS ON MOUNT
+  useEffect(() => {
+    const token = localStorage.getItem("authToken");
+    if (!token) return;
+
+    const fetchNotifications = async () => {
+      try {
+        const apiUrl =
+          process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080";
+
+        const res = await fetch(`${apiUrl}/api/product`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+
+        if (!res.ok) return;
+
+        const data = await res.json();
+        const products = Array.isArray(data)
+          ? data
+          : data?.data || data?.items || [];
+
+        // Count low stock products
+        const lowStockCount = products.filter(
+          (p: any) =>
+            Number(p.stock) <= Number(p.low_stock_alert_threshold)
+        ).length;
+
+        setNotificationCount(lowStockCount);
+      } catch (err) {
+        console.error("Failed to fetch notifications");
+      }
+    };
+
+    fetchNotifications();
+
+    // Optional: Refresh every 30 seconds
+    const interval = setInterval(fetchNotifications, 30000);
+    return () => clearInterval(interval);
+  }, []);
+
+  const hasNotifications = notificationCount > 0;
 
   return (
     <div
       className="fixed top-2 left-72 w-80/100 z-40 flex items-center px-8 py-3 bg-white rounded-bl-3xl rounded-tl-3xl rounded-br-3xl rounded-tr-3xl border-l-4 border-r-4"
       style={{
         height: 58,
-        boxShadow: "0 10px 20px rgba(0, 0, 0, 0.1), 0 5px 10px rgba(0, 0, 0, 0.05)", // Adding a stronger 3D effect
+        boxShadow:
+          "0 10px 20px rgba(0, 0, 0, 0.1), 0 5px 10px rgba(0, 0, 0, 0.05)",
       }}
     >
       {/* Search Bar */}
@@ -70,7 +114,6 @@ export default function TopNavBar({
           type="button"
         >
           <span className="mr-2 text-lg flex items-center justify-center">
-            {/* Modern barcode icon */}
             <svg width="24" height="24" fill="none" viewBox="0 0 24 24">
               <rect
                 x="6"
@@ -104,7 +147,6 @@ export default function TopNavBar({
                 rx="1"
                 fill="currentColor"
               />
-              {/* Corners */}
               <path
                 d="M2 6a4 4 0 0 1 4-4h2"
                 stroke="currentColor"
@@ -146,24 +188,11 @@ export default function TopNavBar({
             className="w-6 h-6 mr-2"
             viewBox="0 0 24 24"
             fill="none"
-            stroke="url(#blue-gradient)"
+            stroke="currentColor"
             strokeWidth={2}
             strokeLinecap="round"
             strokeLinejoin="round"
           >
-            <defs>
-              <linearGradient
-                id="blue-gradient"
-                x1="0"
-                y1="0"
-                x2="24"
-                y2="24"
-                gradientUnits="userSpaceOnUse"
-              >
-                <stop stopColor="#2563eb" /> {/* blue-700 */}
-                <stop offset="1" stopColor="#2563eb" /> {/* cyan-400 */}
-              </linearGradient>
-            </defs>
             <path d="M5 21v-16a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v16l-3-2-3 2-3-2-3 2z" />
             <line x1="9" y1="7" x2="15" y2="7" />
             <line x1="9" y1="11" x2="15" y2="11" />
@@ -173,9 +202,39 @@ export default function TopNavBar({
         </button>
       </div>
 
-      {/* Notification Bell */}
-      <div className="ml-15 mr-23">
-        <NotificationBell />
+      {/* 🔔 NOTIFICATION BELL WITH RED BADGE */}
+      <div className="ml-15 mr-23 relative">
+        <Link
+          href="/notifications"
+          className="relative p-2 rounded-full hover:bg-gray-100 transition flex items-center justify-center"
+        >
+          {/* Bell Icon */}
+          <svg
+            className={`w-6 h-6 transition-colors ${
+              hasNotifications ? "text-red-600 animate-pulse" : "text-blue-700"
+            }`}
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+            strokeWidth={2}
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              d="M15 17h5l-1.405-1.405A2.032 2.032 0 0 1 18 14.158V11a6.002 6.002 0 0 0-4-5.659V5a2 2 0 1 0-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0a3 3 0 0 1-6 0"
+            />
+          </svg>
+
+          {/* Red Badge with Count */}
+          {hasNotifications && (
+            <span className="absolute -top-1 -right-1 flex items-center justify-center">
+              <span className="absolute inline-flex h-4 w-4 rounded-full bg-red-400 opacity-75 animate-ping"></span>
+              <span className="relative inline-flex h-5 min-w-[20px] items-center justify-center rounded-full bg-red-600 text-white text-xs font-bold px-1 border-2 border-white">
+                {notificationCount > 99 ? "99+" : notificationCount}
+              </span>
+            </span>
+          )}
+        </Link>
       </div>
 
       {/* Profile Header */}

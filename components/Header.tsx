@@ -1,18 +1,27 @@
 import React, { useState } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 
 interface HeaderProps {
   user: {
     name?: string;
     role?: string;
     profilePhoto?: string;
+    notificationCount?: number;
   };
   searchTerm: string;
   setSearchTerm: (term: string) => void;
   active: "product" | "customer" | "admin" | "report";
+  notificationCount?: number;
 }
 
-const Header: React.FC<HeaderProps> = ({ user, searchTerm, setSearchTerm, active }) => {
+const Header: React.FC<HeaderProps> = ({ 
+  user, 
+  searchTerm, 
+  setSearchTerm, 
+  active,
+  notificationCount = 0 
+}) => {
   const router = useRouter();
   const [showUserMenu, setShowUserMenu] = useState(false);
 
@@ -46,6 +55,7 @@ const Header: React.FC<HeaderProps> = ({ user, searchTerm, setSearchTerm, active
     <header className="bg-white border-b border-gray-100 shadow-sm sticky top-0 z-40 w-full">
       <div className="px-5 py-4 w-full">
         <div className="flex items-center justify-between" style={{ width: 'calc(85vw - 124px)' }}>
+          {/* Search Bar */}
           <div className="flex-1 max-w-3xl mr-8">
             <div className="relative group">
               <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
@@ -110,13 +120,41 @@ const Header: React.FC<HeaderProps> = ({ user, searchTerm, setSearchTerm, active
               </div>
             )}
 
-            {/* Notifications */}
-            <button className="relative p-3 text-gray-400 hover:text-gray-600 hover:bg-gray-50 rounded-xl transition-all duration-200">
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-5.586-5.586a1 1 0 010-1.414L20 4h-5.586a1 1 0 01-.707-.293L12 2l-1.707 1.707A1 1 0 019.586 4H4l5.586 5.586a1 1 0 010 1.414L4 17h5.586a1 1 0 01.707.293L12 19l1.707-1.707A1 1 0 0114.414 17z" />
+            {/* Notifications Bell with Badge */}
+            <Link 
+              href="/notifications" 
+              className="relative inline-flex items-center justify-center p-3 text-gray-600 hover:text-gray-800 hover:bg-gray-100 rounded-xl transition-all duration-200 group"
+            >
+              {/* Bell Icon */}
+              <svg 
+                className="w-6 h-6 relative z-10" 
+                fill="none" 
+                stroke="currentColor" 
+                viewBox="0 0 24 24"
+              >
+                <path 
+                  strokeLinecap="round" 
+                  strokeLinejoin="round" 
+                  strokeWidth={2} 
+                  d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" 
+                />
               </svg>
-              <span className="absolute -top-1 -right-1 w-3 h-3 bg-blue-500 rounded-full"></span>
-            </button>
+              
+              {/* Notification Badge - Red Dot with Count */}
+              {notificationCount > 0 && (
+                <div className="absolute -top-0.5 -right-0.5 flex items-center justify-center">
+                  <div className="min-w-[24px] h-6 bg-red-500 text-white text-xs font-bold rounded-full flex items-center justify-center px-1.5 shadow-lg border-2 border-white">
+                    {notificationCount > 99 ? '99+' : notificationCount}
+                  </div>
+                </div>
+              )}
+              
+              {/* Hover Tooltip */}
+              <div className="absolute bottom-full right-0 mb-3 px-3 py-2 bg-gray-900 text-white text-xs font-medium rounded-lg opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none z-20">
+                {notificationCount} notification{notificationCount !== 1 ? 's' : ''}
+                <div className="absolute top-full right-2 w-2 h-2 bg-gray-900 transform rotate-45"></div>
+              </div>
+            </Link>
 
             {/* User Profile */}
             <div className="relative">
@@ -165,14 +203,20 @@ const Header: React.FC<HeaderProps> = ({ user, searchTerm, setSearchTerm, active
                     <p className="text-sm font-medium text-gray-800">{user?.name || "User"}</p>
                     <p className="text-xs text-gray-500">{user?.role || "Role"}</p>
                   </div>
-                  <button className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors">
+                  <Link href="/profile" className="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors">
                     Profile Settings
-                  </button>
-                  <button className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors">
+                  </Link>
+                  <Link href="/settings" className="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors">
                     Preferences
-                  </button>
+                  </Link>
                   <hr className="my-1 border-gray-100" />
-                  <button className="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50 transition-colors">
+                  <button 
+                    onClick={() => {
+                      localStorage.removeItem('authToken');
+                      router.push('/auth/login');
+                    }}
+                    className="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50 transition-colors"
+                  >
                     Sign Out
                   </button>
                 </div>
