@@ -1,4 +1,5 @@
 'use client';
+
 import React, { useState, ChangeEvent, FormEvent, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import ProfileHeader from "@/components/ProfileHeader";
@@ -11,121 +12,93 @@ type User = {
   [key: string]: any;
 };
 
+interface Category {
+  category_id: number;
+  category_name: string;
+  description?: string;
+}
+
 interface ProductForm {
   name: string;
   category_id: string;
+  category_name: string;
   sku: string;
   price: string;
   cost_price: string;
   stock: string;
   low_stock_alert_threshold: string;
-  image_url?: string;
   status: boolean;
-  image_file?: File;
 }
 
 export default function AddProductPage() {
+  const router = useRouter();
+
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
-  const [categories, setCategories] = useState<{ id: string; name: string }[]>([
-    { id: "1", name: "Electronics" },
-    { id: "2", name: "Clothing" },
-    { id: "3", name: "Books" },
-    { id: "4", name: "Food" },
-  ]);
+  const [categoriesLoading, setCategoriesLoading] = useState(true);
+  const [categories, setCategories] = useState<Category[]>([]);
 
   const [formData, setFormData] = useState<ProductForm>({
     name: "",
     category_id: "",
+    category_name: "",
     sku: "",
     price: "",
     cost_price: "",
     stock: "",
     low_stock_alert_threshold: "",
-    image_url: "",
     status: true,
-    image_file: undefined,
   });
-
-  const router = useRouter();
 
   useEffect(() => {
     (async () => {
       try {
         const userData = await fetchCurrentUser();
-        const currentUser =
-          userData && typeof userData === "object" && "user" in userData && userData.user
-            ? userData.user
-            : userData && typeof userData === "object" && "data" in userData && userData.data
-            ? userData.data
-            : userData;
+        const currentUser = (userData as any)?.user || (userData as any)?.data || userData || null;
         setUser(currentUser as User | null);
-        if (
-          !currentUser ||
-          typeof currentUser !== "object" ||
-          currentUser === null ||
-          !("role" in currentUser) ||
-          (currentUser as User).role !== "ADMIN"
-        ) {
+
+        if (!currentUser || !["ADMIN", "MANAGER", "CASHIER"].includes(currentUser.role)) {
           router.replace("/unauthorized");
+          return;
         }
-      } catch {
+
+        const authToken = localStorage.getItem("authToken");
+        const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080";
+
+        const catRes = await fetch(`${apiUrl}/api/category`, {
+          headers: authToken ? { Authorization: `Bearer ${authToken}` } : undefined,
+        });
+
+        if (catRes.ok) {
+          const catData = await catRes.json();
+          const catList = Array.isArray(catData) ? catData : catData?.data || catData?.items || [];
+          setCategories(catList);
+        } else {
+          console.error("Failed to fetch categories");
+          setCategories([]);
+        }
+      } catch (err) {
+        console.error("Error fetching user or categories:", err);
         router.replace("/unauthorized");
+      } finally {
+        setCategoriesLoading(false);
       }
     })();
   }, [router]);
 
-  useEffect(() => {
-    (async () => {
-      try {
-        const apiUrl = process.env.NEXT_PUBLIC_API_URL || "";
-        if (!apiUrl) return;
-        const token = typeof window !== "undefined" ? localStorage.getItem("authToken") : null;
-        const headers: Record<string, string> = {};
-        if (token) headers["Authorization"] = `Bearer ${token}`;
-        const res = await fetch(`${apiUrl}/api/category`, { headers });
-        if (!res.ok) return;
-        const payload = await res.json().catch(() => null);
-        const list: any[] = Array.isArray(payload) ? payload : payload?.data ?? payload?.items ?? [];
-        if (!Array.isArray(list) || list.length === 0) return;
-        const mapped = list.map((c: any) => {
-          const id = c.id ?? c._id ?? c.value ?? c.category_id ?? c.categoryId;
-          const name = c.name ?? c.title ?? c.category_name ?? c.label ?? String(c);
-          return { id: String(id), name: String(name).trim() };
-        });
-        // merge unique by id or name
-        const map = new Map<string, { id: string; name: string }>();
-        [...mapped, ...categories].forEach((c) => {
-          if (c && c.id && c.name) map.set(c.id, c);
-        });
-        setCategories(Array.from(map.values()));
-      } catch {
-        // ignore, keep fallback categories
-      }
-      // eslint-disable-next-line react-hooks/exhaustive-deps
-    })();
-  }, []);
-
   const handleChange = (e: ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value, type } = e.target;
     const checked = (e.target as HTMLInputElement).checked;
+
     setFormData((prev) => ({
       ...prev,
       [name]: type === "checkbox" ? checked : value,
+      ...(name === "category_id"
+        ? { category_name: categories.find((c) => String(c.category_id) === value)?.category_name || "" }
+        : {}),
     }));
-  };
-
-  const handleFileChange = (e: ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      setFormData((prev) => ({
-        ...prev,
-        image_file: file,
-        image_url: URL.createObjectURL(file),
-      }));
-    }
   };
 
   const handleSubmit = async (e: FormEvent) => {
@@ -135,653 +108,185 @@ export default function AddProductPage() {
     setSuccess("");
 
     try {
-      const formDataToSend = new FormData();
-      formDataToSend.append("name", formData.name);
-      formDataToSend.append("category_id", formData.category_id);
-      formDataToSend.append("sku", formData.sku);
-      formDataToSend.append("price", formData.price);
-      formDataToSend.append("cost_price", formData.cost_price);
-      formDataToSend.append("stock", formData.stock);
-      formDataToSend.append("low_stock_alert_threshold", formData.low_stock_alert_threshold);
-      formDataToSend.append("status", formData.status ? "1" : "0");
+      const token = localStorage.getItem("authToken");
+      if (!token) throw new Error("User not authenticated");
 
-      if (formData.image_file) {
-        formDataToSend.append("image", formData.image_file);
-      }
-
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || "";
-      const authToken = typeof window !== "undefined" ? localStorage.getItem("authToken") : null;
-
-      const response = await fetch(`${apiUrl}/api/product/add`, {
-        method: "POST",
-        headers: authToken ? { Authorization: `Bearer ${authToken}` } : undefined, // don't set Content-Type
-        body: formDataToSend,
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080";
+      
+      const body = JSON.stringify({
+        name: formData.name,
+        category_id: parseInt(formData.category_id),
+        category_name: formData.category_name,
+        sku: formData.sku,
+        price: parseFloat(formData.price),
+        cost_price: parseFloat(formData.cost_price),
+        stock: parseInt(formData.stock),
+        low_stock_alert_threshold: parseInt(formData.low_stock_alert_threshold) || 0,
+        status: formData.status,
       });
 
-      if (!response.ok) {
-        const errText = await response.text().catch(() => "");
-        throw new Error(`Failed to add product: ${response.status} ${errText}`);
+      const res = await fetch(`${apiUrl}/api/product/add`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body,
+      });
+
+      if (!res.ok) {
+        const text = await res.text();
+        throw new Error(`Error ${res.status}: ${text}`);
       }
 
-      const created = await response.json().catch(() => null);
-
-      // notify other tabs/pages to refresh (Dashboard listens for this)
-      try {
-        localStorage.setItem(
-          "product-added",
-          JSON.stringify({ time: Date.now(), product: created?.data ?? created ?? null })
-        );
-      } catch {}
-
-      setSuccess("Product added successfully!");
-      // small delay to show success then navigate
-      setTimeout(() => router.push("/admin/product/view"), 400);
+      setSuccess("✅ Product added successfully!");
+      setTimeout(() => router.push("/admin/product/view"), 800);
     } catch (err: any) {
-      setError(err?.message || "Failed to add product.");
+      setError(err.message || "Failed to add product.");
     } finally {
       setLoading(false);
     }
   };
 
-  if (!user) return <div style={{ color: "#2563eb", textAlign: "center", padding: "32px" }}>Loading...</div>;
+  if (!user) return <div className="p-8 text-blue-600">Loading...</div>;
 
   return (
-    <div style={{ display: "flex", minHeight: "100vh" }}>
-      <main
-        style={{
-          flex: 1,
-          marginLeft: "0px",
-          padding: "20px",
-          display: "flex",
-          flexDirection: "column",
-          alignItems: "center",
-          minHeight: "100vh",
-          width: "100%",
-        }}
-      >
+    <div className="flex min-h-screen bg-50">
+      <main className="flex-1 p-8">
         <ProfileHeader name={user.name} role={user.role} profilePhoto={user.profilePhoto} />
 
-        <div
-          style={{
-            background: "rgba(255, 255, 255, 0.98)",
-            padding: "40px",
-            borderRadius: "20px",
-            boxShadow: "0 25px 50px rgba(0, 0, 0, 0.15)",
-            width: "100%",
-            maxWidth: "700px",
-            marginTop: "30px",
-            border: "1px solid rgba(255, 255, 255, 0.3)",
-            backdropFilter: "blur(20px)",
-          }}
-        >
-          <div
-            style={{
-              textAlign: "center",
-              marginBottom: "35px",
-              borderBottom: "2px solid #e2e8f0",
-              paddingBottom: "20px",
-            }}
-          >
-            <h1 style={{ fontSize: "28px", fontWeight: "700", color: "#1e293b", margin: "0 0 8px 0" }}>
-              Add New Product
-            </h1>
-            <p style={{ color: "#64748b", fontSize: "14px", margin: "0", fontWeight: "500" }}>
-              Complete the product details below
-            </p>
-          </div>
+        <div className="bg-white shadow-xl rounded-2xl p-8 mt-10 max-w-2xl mx-auto">
+          <h1 className="text-2xl font-bold text-center mb-6">Add New Product</h1>
 
-          {error && (
-            <div
-              style={{
-                backgroundColor: "#fee2e2",
-                border: "1px solid #fecaca",
-                color: "#dc2626",
-                padding: "12px 16px",
-                borderRadius: "10px",
-                marginBottom: "20px",
-                fontSize: "14px",
-                fontWeight: "500",
-              }}
-            >
-              ⚠️ {error}
-            </div>
-          )}
+          {error && <div className="bg-red-100 text-red-700 p-3 rounded mb-4">{error}</div>}
+          {success && <div className="bg-green-100 text-green-700 p-3 rounded mb-4">{success}</div>}
 
-          {success && (
-            <div
-              style={{
-                backgroundColor: "#dcfce7",
-                border: "1px solid #bbf7d0",
-                color: "#16a34a",
-                padding: "12px 16px",
-                borderRadius: "10px",
-                marginBottom: "20px",
-                fontSize: "14px",
-                fontWeight: "500",
-              }}
-            >
-              ✅ {success}
-            </div>
-          )}
-
-          <form onSubmit={handleSubmit}>
-            <div style={{ marginBottom: "30px" }}>
-              <h3
-                style={{
-                  fontSize: "16px",
-                  fontWeight: "600",
-                  color: "#1e293b",
-                  marginBottom: "15px",
-                  borderBottom: "1px solid #e2e8f0",
-                  paddingBottom: "8px",
-                }}
-              >
-                Basic Information
-              </h3>
-
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "20px", marginBottom: "20px" }}>
-                <div>
-                  <label
-                    style={{
-                      display: "block",
-                      fontSize: "13px",
-                      fontWeight: "600",
-                      color: "#374151",
-                      marginBottom: "8px",
-                      textTransform: "uppercase",
-                      letterSpacing: "0.5px",
-                    }}
-                  >
-                    Product Name
-                  </label>
-                  <input
-                    type="text"
-                    name="name"
-                    value={formData.name}
-                    onChange={handleChange}
-                    placeholder="Enter product name"
-                    required
-                    style={{
-                      width: "100%",
-                      padding: "14px 16px",
-                      borderRadius: "10px",
-                      border: "2px solid #e2e8f0",
-                      fontSize: "15px",
-                      backgroundColor: "#ffffff",
-                      transition: "all 0.2s ease",
-                      outline: "none",
-                    }}
-                    onFocus={(e) => (e.target.style.borderColor = "#3b82f6")}
-                    onBlur={(e) => (e.target.style.borderColor = "#e2e8f0")}
-                  />
-                </div>
-
-                <div>
-                  <label
-                    style={{
-                      display: "block",
-                      fontSize: "13px",
-                      fontWeight: "600",
-                      color: "#374151",
-                      marginBottom: "8px",
-                      textTransform: "uppercase",
-                      letterSpacing: "0.5px",
-                    }}
-                  >
-                    Category
-                  </label>
+          <form onSubmit={handleSubmit} className="space-y-5">
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium mb-1">Product Name</label>
+                <input
+                  type="text"
+                  name="name"
+                  value={formData.name}
+                  onChange={handleChange}
+                  required
+                  className="w-full border border-gray-300 p-2 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-1">Category</label>
+                {categoriesLoading ? (
+                  <div className="w-full border border-gray-300 p-2 rounded-md bg-gray-100 text-gray-500">
+                    Loading categories...
+                  </div>
+                ) : categories.length === 0 ? (
+                  <div className="w-full border border-gray-300 p-2 rounded-md bg-red-50 text-red-600 text-sm">
+                    No categories available. <a href="/admin/category/add" className="underline font-bold">Add one</a>
+                  </div>
+                ) : (
                   <select
                     name="category_id"
                     value={formData.category_id}
                     onChange={handleChange}
                     required
-                    style={{
-                      width: "100%",
-                      padding: "14px 16px",
-                      borderRadius: "10px",
-                      border: "2px solid #e2e8f0",
-                      fontSize: "15px",
-                      backgroundColor: "#ffffff",
-                      transition: "all 0.2s ease",
-                      outline: "none",
-                    }}
-                    onFocus={(e) => (e.target.style.borderColor = "#8b5cf6")}
-                    onBlur={(e) => (e.target.style.borderColor = "#e2e8f0")}
+                    className="w-full border border-gray-300 p-2 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                   >
                     <option value="">Select Category</option>
                     {categories.map((c) => (
-                      <option key={c.id} value={c.id}>
-                        {c.name}
+                      <option key={c.category_id} value={String(c.category_id)}>
+                        {c.category_name}
                       </option>
                     ))}
                   </select>
-                </div>
+                )}
               </div>
+            </div>
 
+            <div className="grid grid-cols-2 gap-4">
               <div>
-                <label
-                  style={{
-                    display: "block",
-                    fontSize: "13px",
-                    fontWeight: "600",
-                    color: "#374151",
-                    marginBottom: "8px",
-                    textTransform: "uppercase",
-                    letterSpacing: "0.5px",
-                  }}
-                >
-                  SKU (Stock Keeping Unit)
-                </label>
+                <label className="block text-sm font-medium mb-1">SKU</label>
                 <input
                   type="text"
                   name="sku"
                   value={formData.sku}
                   onChange={handleChange}
-                  placeholder="e.g., PROD-001-XYZ"
                   required
-                  style={{
-                    width: "100%",
-                    padding: "14px 16px",
-                    borderRadius: "10px",
-                    border: "2px solid #e2e8f0",
-                    fontSize: "15px",
-                    backgroundColor: "#ffffff",
-                    transition: "all 0.2s ease",
-                    outline: "none",
-                  }}
-                  onFocus={(e) => (e.target.style.borderColor = "#f59e0b")}
-                  onBlur={(e) => (e.target.style.borderColor = "#e2e8f0")}
+                  className="w-full border border-gray-300 p-2 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
               </div>
-            </div>
-
-            {/* Pricing & Inventory Section */}
-            <div style={{ marginBottom: "30px" }}>
-              <h3
-                style={{
-                  fontSize: "16px",
-                  fontWeight: "600",
-                  color: "#1e293b",
-                  marginBottom: "15px",
-                  borderBottom: "1px solid #e2e8f0",
-                  paddingBottom: "8px",
-                }}
-              >
-                Pricing & Inventory
-              </h3>
-
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "20px", marginBottom: "20px" }}>
-                <div>
-                  <label
-                    style={{
-                      display: "block",
-                      fontSize: "13px",
-                      fontWeight: "600",
-                      color: "#374151",
-                      marginBottom: "8px",
-                      textTransform: "uppercase",
-                      letterSpacing: "0.5px",
-                    }}
-                  >
-                    Selling Price ($)
-                  </label>
-                  <input
-                    type="number"
-                    name="price"
-                    step="0.01"
-                    value={formData.price}
-                    onChange={handleChange}
-                    placeholder="0.00"
-                    min="0"
-                    required
-                    style={{
-                      width: "100%",
-                      padding: "14px 16px",
-                      borderRadius: "10px",
-                      border: "2px solid #e2e8f0",
-                      fontSize: "15px",
-                      backgroundColor: "#ffffff",
-                      transition: "all 0.2s ease",
-                      outline: "none",
-                      fontWeight: "600",
-                    }}
-                    onFocus={(e) => (e.target.style.borderColor = "#10b981")}
-                    onBlur={(e) => (e.target.style.borderColor = "#e2e8f0")}
-                  />
-                </div>
-
-                <div>
-                  <label
-                    style={{
-                      display: "block",
-                      fontSize: "13px",
-                      fontWeight: "600",
-                      color: "#374151",
-                      marginBottom: "8px",
-                      textTransform: "uppercase",
-                      letterSpacing: "0.5px",
-                    }}
-                  >
-                    Cost Price ($)
-                  </label>
-                  <input
-                    type="number"
-                    name="cost_price"
-                    step="0.01"
-                    value={formData.cost_price}
-                    onChange={handleChange}
-                    placeholder="0.00"
-                    min="0"
-                    required
-                    style={{
-                      width: "100%",
-                      padding: "14px 16px",
-                      borderRadius: "10px",
-                      border: "2px solid #e2e8f0",
-                      fontSize: "15px",
-                      backgroundColor: "#ffffff",
-                      transition: "all 0.2s ease",
-                      outline: "none",
-                    }}
-                    onFocus={(e) => (e.target.style.borderColor = "#ef4444")}
-                    onBlur={(e) => (e.target.style.borderColor = "#e2e8f0")}
-                  />
-                </div>
-              </div>
-
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "20px" }}>
-                <div>
-                  <label
-                    style={{
-                      display: "block",
-                      fontSize: "13px",
-                      fontWeight: "600",
-                      color: "#374151",
-                      marginBottom: "8px",
-                      textTransform: "uppercase",
-                      letterSpacing: "0.5px",
-                    }}
-                  >
-                    Stock Quantity
-                  </label>
-                  <input
-                    type="number"
-                    name="stock"
-                    value={formData.stock}
-                    onChange={handleChange}
-                    placeholder="0"
-                    min="0"
-                    required
-                    style={{
-                      width: "100%",
-                      padding: "14px 16px",
-                      borderRadius: "10px",
-                      border: "2px solid #e2e8f0",
-                      fontSize: "15px",
-                      backgroundColor: "#ffffff",
-                      transition: "all 0.2s ease",
-                      outline: "none",
-                    }}
-                    onFocus={(e) => (e.target.style.borderColor = "#3b82f6")}
-                    onBlur={(e) => (e.target.style.borderColor = "#e2e8f0")}
-                  />
-                </div>
-
-                <div>
-                  <label
-                    style={{
-                      display: "block",
-                      fontSize: "13px",
-                      fontWeight: "600",
-                      color: "#374151",
-                      marginBottom: "8px",
-                      textTransform: "uppercase",
-                      letterSpacing: "0.5px",
-                    }}
-                  >
-                    Low Stock Alert
-                  </label>
-                  <input
-                    type="number"
-                    name="low_stock_alert_threshold"
-                    value={formData.low_stock_alert_threshold}
-                    onChange={handleChange}
-                    placeholder="5"
-                    min="0"
-                    required
-                    style={{
-                      width: "100%",
-                      padding: "14px 16px",
-                      borderRadius: "10px",
-                      border: "2px solid #e2e8f0",
-                      fontSize: "15px",
-                      backgroundColor: "#ffffff",
-                      transition: "all 0.2s ease",
-                      outline: "none",
-                    }}
-                    onFocus={(e) => (e.target.style.borderColor = "#f59e0b")}
-                    onBlur={(e) => (e.target.style.borderColor = "#e2e8f0")}
-                  />
-                </div>
-              </div>
-            </div>
-
-            {/* Product Image Section */}
-            <div style={{ marginBottom: "30px" }}>
-              <h3
-                style={{
-                  fontSize: "16px",
-                  fontWeight: "600",
-                  color: "#1e293b",
-                  marginBottom: "15px",
-                  borderBottom: "1px solid #e2e8f0",
-                  paddingBottom: "8px",
-                }}
-              >
-                Product Image
-              </h3>
-
-              <div
-                style={{
-                  border: "3px dashed #d1d5db",
-                  borderRadius: "15px",
-                  padding: "30px",
-                  textAlign: "center",
-                  backgroundColor: "#f8fafc",
-                  transition: "all 0.3s ease",
-                  position: "relative",
-                  minHeight: "150px",
-                  display: "flex",
-                  flexDirection: "column",
-                  justifyContent: "center",
-                  alignItems: "center",
-                }}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.borderColor = "#3b82f6";
-                  e.currentTarget.style.backgroundColor = "#eff6ff";
-                  e.currentTarget.style.transform = "scale(1.02)";
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.borderColor = "#d1d5db";
-                  e.currentTarget.style.backgroundColor = "#f8fafc";
-                  e.currentTarget.style.transform = "scale(1)";
-                }}
-              >
-                {!formData.image_url ? (
-                  <>
-                    <div
-                      style={{
-                        width: "60px",
-                        height: "60px",
-                        backgroundColor: "#e2e8f0",
-                        borderRadius: "50%",
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "center",
-                        marginBottom: "15px",
-                        fontSize: "24px",
-                      }}
-                    >
-                      📸
-                    </div>
-                    <input
-                      type="file"
-                      accept="image/*"
-                      onChange={handleFileChange}
-                      style={{
-                        position: "absolute",
-                        width: "100%",
-                        height: "100%",
-                        opacity: 0,
-                        cursor: "pointer",
-                      }}
-                    />
-                    <div style={{ fontSize: "16px", color: "#374151", fontWeight: "600", marginBottom: "5px" }}>
-                      Click to upload product image
-                    </div>
-                    <div style={{ fontSize: "13px", color: "#6b7280" }}>Or drag and drop your image here</div>
-                  </>
-                ) : (
-                  <div style={{ position: "relative", maxWidth: "200px", margin: "0 auto" }}>
-                    <img
-                      src={formData.image_url?.startsWith("blob:") ? formData.image_url : `${process.env.NEXT_PUBLIC_API_URL}${formData.image_url}`}
-                      alt={formData.name}
-                      style={{ maxWidth: "100%", borderRadius: 8 }}
-                    />
-                    <button
-                      type="button"
-                      onClick={() => setFormData({ ...formData, image_file: undefined, image_url: "" })}
-                      style={{
-                        position: "absolute",
-                        top: "-8px",
-                        right: "-8px",
-                        width: "30px",
-                        height: "30px",
-                        borderRadius: "50%",
-                        backgroundColor: "#ef4444",
-                        color: "white",
-                        border: "2px solid white",
-                        cursor: "pointer",
-                        fontSize: "14px",
-                        fontWeight: "bold",
-                      }}
-                    >
-                      ✕
-                    </button>
-                  </div>
-                )}
-              </div>
-            </div>
-
-            {/* Status Section */}
-            <div style={{ marginBottom: "30px" }}>
-              <label
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: "12px",
-                  fontSize: "15px",
-                  color: "#374151",
-                  fontWeight: "500",
-                  cursor: "pointer",
-                  padding: "15px",
-                  backgroundColor: "#f8fafc",
-                  borderRadius: "10px",
-                  border: "2px solid #e2e8f0",
-                  transition: "all 0.2s ease",
-                }}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.backgroundColor = "#eff6ff";
-                  e.currentTarget.style.borderColor = "#3b82f6";
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.backgroundColor = "#f8fafc";
-                  e.currentTarget.style.borderColor = "#e2e8f0";
-                }}
-              >
+              <div>
+                <label className="block text-sm font-medium mb-1">Price ($)</label>
                 <input
-                  type="checkbox"
-                  name="status"
-                  checked={formData.status}
+                  type="number"
+                  name="price"
+                  value={formData.price}
                   onChange={handleChange}
-                  style={{
-                    width: "20px",
-                    height: "20px",
-                    accentColor: "#10b981",
-                  }}
+                  step="0.01"
+                  required
+                  className="w-full border border-gray-300 p-2 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
-                <span style={{ textTransform: "uppercase", letterSpacing: "0.5px", fontWeight: "600" }}>
-                  ✅ Product is Active
-                </span>
-              </label>
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-1">Cost Price ($)</label>
+                <input
+                  type="number"
+                  name="cost_price"
+                  value={formData.cost_price}
+                  onChange={handleChange}
+                  step="0.01"
+                  required
+                  className="w-full border border-gray-300 p-2 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-1">Stock</label>
+                <input
+                  type="number"
+                  name="stock"
+                  value={formData.stock}
+                  onChange={handleChange}
+                  required
+                  className="w-full border border-gray-300 p-2 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-1">Low Stock Alert</label>
+                <input
+                  type="number"
+                  name="low_stock_alert_threshold"
+                  value={formData.low_stock_alert_threshold}
+                  onChange={handleChange}
+                  className="w-full border border-gray-300 p-2 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
             </div>
 
-            {/* Action Buttons */}
-            <div style={{ display: "flex", gap: "15px", marginTop: "35px", paddingTop: "25px", borderTop: "2px solid #e2e8f0" }}>
+            <div className="flex items-center space-x-2">
+              <input
+                type="checkbox"
+                name="status"
+                checked={formData.status}
+                onChange={handleChange}
+                className="w-5 h-5 cursor-pointer"
+              />
+              <label className="text-sm cursor-pointer">Product is Active</label>
+            </div>
+
+            <div className="flex gap-3">
               <button
                 type="submit"
-                disabled={loading}
-                style={{
-                  flex: 1,
-                  background: loading ? "#94a3b8" : "linear-gradient(135deg, #10b981 0%, #059669 100%)",
-                  color: "white",
-                  padding: "16px 24px",
-                  border: "none",
-                  borderRadius: "12px",
-                  cursor: loading ? "not-allowed" : "pointer",
-                  fontSize: "15px",
-                  fontWeight: "600",
-                  textTransform: "uppercase",
-                  letterSpacing: "0.5px",
-                  transition: "all 0.3s ease",
-                  boxShadow: loading ? "none" : "0 4px 15px rgba(16, 185, 129, 0.3)",
-                  transform: loading ? "none" : "translateY(0px)",
-                }}
-                onMouseEnter={(e) => {
-                  if (!loading) {
-                    (e.currentTarget as HTMLButtonElement).style.transform = "translateY(-2px)";
-                    (e.currentTarget as HTMLButtonElement).style.boxShadow = "0 8px 25px rgba(16, 185, 129, 0.4)";
-                  }
-                }}
-                onMouseLeave={(e) => {
-                  if (!loading) {
-                    (e.currentTarget as HTMLButtonElement).style.transform = "translateY(0px)";
-                    (e.currentTarget as HTMLButtonElement).style.boxShadow = "0 4px 15px rgba(16, 185, 129, 0.3)";
-                  }
-                }}
+                disabled={loading || categoriesLoading}
+                className={`flex-1 py-3 rounded-md text-white font-semibold ${
+                  loading || categoriesLoading ? "bg-gray-400 cursor-not-allowed" : "bg-green-600 hover:bg-green-700"
+                }`}
               >
-                {loading ? "⏳ Adding Product..." : "💾 Save Product"}
+                {loading ? "⏳ Saving..." : "💾 Save Product"}
               </button>
-
               <button
                 type="button"
-                style={{
-                  flex: 1,
-                  background: "linear-gradient(135deg, #ef4444 0%, #dc2626 100%)",
-                  color: "white",
-                  padding: "16px 24px",
-                  border: "none",
-                  borderRadius: "12px",
-                  cursor: "pointer",
-                  fontSize: "15px",
-                  fontWeight: "600",
-                  textTransform: "uppercase",
-                  letterSpacing: "0.5px",
-                  transition: "all 0.3s ease",
-                  boxShadow: "0 4px 15px rgba(239, 68, 68, 0.3)",
-                  transform: "translateY(0px)",
-                }}
-                onMouseEnter={(e) => {
-                  (e.currentTarget as HTMLButtonElement).style.transform = "translateY(-2px)";
-                  (e.currentTarget as HTMLButtonElement).style.boxShadow = "0 8px 25px rgba(239, 68, 68, 0.4)";
-                }}
-                onMouseLeave={(e) => {
-                  (e.currentTarget as HTMLButtonElement).style.transform = "translateY(0px)";
-                  (e.currentTarget as HTMLButtonElement).style.boxShadow = "0 4px 15px rgba(239, 68, 68, 0.3)";
-                }}
-                onClick={() => {
-                  router.push("/admin/product/view");
-                }}
+                onClick={() => router.push("/admin/product/view")}
+                className="flex-1 py-3 rounded-md bg-red-600 hover:bg-red-700 text-white font-semibold"
               >
                 🚫 Cancel
               </button>

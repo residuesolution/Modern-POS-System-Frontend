@@ -29,6 +29,7 @@ type Product = {
   name: string;
   price: number;
   category?: string;
+  category_name?: string; 
   brand?: string;
   image?: string;
   image_url?: string;
@@ -238,13 +239,12 @@ export default function Dashboard() {
   }
 }
 
-
   useEffect(() => {
     let mounted = true;
     (async () => {
       setLoading(true);
       try {
-        // fetch categories
+        // fetch categories FIRST
         let categoriesList: any[] = [];
         try {
           const cResp = await fetchWithToken("/api/category").catch(() => null);
@@ -252,6 +252,8 @@ export default function Dashboard() {
         } catch (err) {
           categoriesList = [];
         }
+        
+        // Build category map (ID -> Name)
         const catMap: Record<string | number, string> = {};
         (categoriesList || []).forEach((c: any) => {
           if (c && (c.id != null || c._id != null) && (c.name || c.category_name || c.title)) {
@@ -262,7 +264,7 @@ export default function Dashboard() {
         });
 
         if (mounted) {
-          // products
+          // Fetch products
           const pResp = await fetchWithToken("/api/product").catch(() => null);
           const productsList: any[] = pResp?.data || pResp || [];
           const nResp: any = await fetchNotifications().catch(() => null);
@@ -270,15 +272,21 @@ export default function Dashboard() {
 
           if (!mounted) return;
 
+          // Map products with proper category names
           const mappedProducts: Product[] = productsList?.length
             ? productsList.map((p: any) => {
-                const byId = (p.category_id != null && catMap[p.category_id]) ? catMap[p.category_id] : undefined;
-                const resolvedCategory = byId || p.categoryName || p.category || p.mainCategory || (p.category_id ? String(p.category_id) : "Uncategorized");
+                // Priority: use catMap lookup first, then fallback to direct properties
+                const categoryName = 
+                  (p.category_id != null && catMap[p.category_id]) 
+                    ? catMap[p.category_id] 
+                    : (p.categoryName || p.category || p.category_name || p.mainCategory || "Uncategorized");
+                
                 return {
                   id: p.id ?? p.productId ?? p.sku ?? Math.random().toString(36).slice(2, 9),
                   name: p.name ?? p.productName ?? "Unnamed",
                   price: typeof p.price === "number" ? p.price : Number(p.price) || 0,
-                  category: String(resolvedCategory),
+                  category: String(categoryName),
+                  category_name: String(categoryName),
                   brand: p.brand ?? p.manufacturer ?? p.brandName ?? undefined,
                   image: p.image ?? p.image_url ?? "",
                   image_url: p.image_url ?? p.image ?? "",
@@ -293,15 +301,18 @@ export default function Dashboard() {
 
           setProducts(uniqueProducts(mappedProducts));
 
-          // derive categoriesFromApi from products (ensures newly added product's category appears)
-          const apiCats = Array.from(new Set(mappedProducts.map((p) => (p.category || "").trim()))).filter(Boolean);
-          const filtered = apiCats.length ? apiCats : ALLOWED_CATEGORIES.slice();
-          setCategoriesFromApi(filtered);
-
+          // Derive categories from mapped products - SORTED ALPHABETICALLY
+          const apiCats = Array.from(
+            new Set(mappedProducts.map((p) => (p.category_name || "").trim()))
+          )
+            .filter(Boolean)
+            .sort((a, b) => a.localeCompare(b)); // A-Z sort
+          
+          setCategoriesFromApi(apiCats.length ? apiCats : ALLOWED_CATEGORIES.slice().sort());
           setNotifications(Array.isArray(notifs) && notifs.length ? notifs : []);
         }
       } catch (e) {
-        // ignore simple load errors
+        console.error("Initial load error", e);
       } finally {
         if (mounted) {
           await refreshOrders();
@@ -310,10 +321,8 @@ export default function Dashboard() {
     })();
 
     function onStorage(e: StorageEvent) {
-      // respond to product and order updates
       try {
         if (e.key === "order-created" && e.newValue) {
-          // an order was just created in another tab / modal -> refresh orders
           (async () => {
             try {
               await refreshOrders();
@@ -340,15 +349,20 @@ export default function Dashboard() {
 
               const pResp = await fetchWithToken("/api/product").catch(() => null);
               const productsList: any[] = pResp?.data || pResp || [];
+              
               const mappedProducts: Product[] = productsList?.length
                 ? productsList.map((p: any) => {
-                    const byId = (p.category_id != null && catMap[p.category_id]) ? catMap[p.category_id] : undefined;
-                    const resolvedCategory = byId || p.categoryName || p.category || p.mainCategory || (p.category_id ? String(p.category_id) : "Uncategorized");
+                    const categoryName = 
+                      (p.category_id != null && catMap[p.category_id]) 
+                        ? catMap[p.category_id] 
+                        : (p.categoryName || p.category || p.category_name || p.mainCategory || "Uncategorized");
+                    
                     return {
                       id: p.id ?? p.productId ?? p.sku ?? Math.random().toString(36).slice(2, 9),
                       name: p.name ?? p.productName ?? "Unnamed",
                       price: typeof p.price === "number" ? p.price : Number(p.price) || 0,
-                      category: String(resolvedCategory),
+                      category: String(categoryName),
+                      category_name: String(categoryName),
                       brand: p.brand ?? p.manufacturer ?? p.brandName ?? undefined,
                       image: p.image ?? p.image_url ?? "",
                       image_url: p.image_url ?? p.image ?? "",
@@ -360,9 +374,17 @@ export default function Dashboard() {
                     };
                   })
                 : [];
+              
               setProducts(uniqueProducts(mappedProducts));
-              const apiCats = Array.from(new Set(mappedProducts.map((p: any) => (p.category || "").trim()))).filter(Boolean);
-              setCategoriesFromApi(apiCats.length ? apiCats : ALLOWED_CATEGORIES.slice());
+              
+              // Sort categories A-Z
+              const apiCats = Array.from(
+                new Set(mappedProducts.map((p) => (p.category_name || "").trim()))
+              )
+                .filter(Boolean)
+                .sort((a, b) => a.localeCompare(b));
+              
+              setCategoriesFromApi(apiCats.length ? apiCats : ALLOWED_CATEGORIES.slice().sort());
             } catch (err) {
               console.error("onStorage product refresh failed", err);
             }
@@ -372,12 +394,15 @@ export default function Dashboard() {
         console.error("onStorage handler error", err);
       }
     }
+    
     window.addEventListener("storage", onStorage);
     return () => {
       mounted = false;
       window.removeEventListener("storage", onStorage);
     };
   }, []);
+
+// ...existing code...
 
   function uniqueProducts(items: Product[]) {
     const map = new Map<string, Product>();
@@ -403,25 +428,25 @@ export default function Dashboard() {
     return ["All Brands", ...Array.from(b).sort()];
   }, [products]);
 
-  const visibleProducts = useMemo(() => {
-    const apiProducts = products || [];
+const visibleProducts = useMemo(() => {
+  const apiProducts = products || [];
 
-    const categoryFiltered =
-      selectedCategory === "All products"
-        ? [...apiProducts]
-        : apiProducts.filter((p) => (p.category || "").toLowerCase().includes((selectedCategory || "").toLowerCase()));
+  const categoryFiltered =
+    selectedCategory === "All products"
+      ? [...apiProducts]
+      : apiProducts.filter((p) => (p.category_name || "").toLowerCase().includes((selectedCategory || "").toLowerCase()));
 
-    const brandFiltered =
-      selectedBrand && selectedBrand !== "All Brands"
-        ? categoryFiltered.filter((p) => (p.brand || "").toLowerCase().includes(selectedBrand.toLowerCase()))
-        : categoryFiltered;
+  const brandFiltered =
+    selectedBrand && selectedBrand !== "All Brands"
+      ? categoryFiltered.filter((p) => (p.brand || "").toLowerCase().includes(selectedBrand.toLowerCase()))
+      : categoryFiltered;
 
-    const sorted = [...brandFiltered];
-    if (sortBy === "name-asc") sorted.sort((a, b) => a.name.localeCompare(b.name));
-    else if (sortBy === "price-asc") sorted.sort((a, b) => (a.price || 0) - (b.price || 0));
-    else if (sortBy === "price-desc") sorted.sort((a, b) => (b.price || 0) - (a.price || 0));
-    return sorted;
-  }, [products, selectedCategory, selectedBrand, sortBy]);
+  const sorted = [...brandFiltered];
+  if (sortBy === "name-asc") sorted.sort((a, b) => a.name.localeCompare(b.name));
+  else if (sortBy === "price-asc") sorted.sort((a, b) => (a.price || 0) - (b.price || 0));
+  else if (sortBy === "price-desc") sorted.sort((a, b) => (b.price || 0) - (a.price || 0));
+  return sorted;
+}, [products, selectedCategory, selectedBrand, sortBy]);
 
   useEffect(() => {
     const cur = productsRef.current;
@@ -773,7 +798,7 @@ export default function Dashboard() {
                         className="no-scrollbar overflow-x-auto px-1 py-2"
                         style={{ scrollBehavior: "auto", paddingLeft: 56, paddingRight: 56 }}
                       >
-                        <div className="flex gap-3 items-start flex-nowrap whitespace-nowrap">
+                       <div className="flex gap-3 items-start flex-nowrap whitespace-nowrap">
                           {visibleProducts.length === 0 ? (
                             <div className="text-sm text-gray-700 p-4">No products available</div>
                           ) : (
@@ -784,11 +809,11 @@ export default function Dashboard() {
                                   key={String(p.id)}
                                   className={`flex-shrink-0 min-w-[160px] p-3 bg-white rounded shadow-sm flex flex-col items-center`}
                                 >
-                                  <img src={resolveImageUrl(p.image || p.image_url)} alt={p.name} className="h-20 object-contain mb-2" />
+                                  {/* REMOVED: Product Image */}
                                   <div className="text-xs font-semibold text-gray-800 text-center">{p.name}</div>
                                   <div className="text-[11px] text-gray-700 text-center">
-                                    {p.brand && <span className="mr-1 text-[10px] text-gray-500">{p.brand}</span>}
-                                    {p.unit && <span className="ml-1">{p.unit}</span>}
+                                    {p.category_name && <span className="mr-1 text-[10px] text-gray-500">{p.category_name}</span>}
+                                    {p.brand && <span className="ml-1">{p.brand}</span>}
                                   </div>
                                   <div className="text-blue-800 font-semibold text-xs mt-2">Rs. {p.price}</div>
 
@@ -816,6 +841,7 @@ export default function Dashboard() {
                             })
                           )}
                         </div>
+
                       </div>
                     </div>
                   </div>
@@ -966,11 +992,11 @@ export default function Dashboard() {
                   ) : (
                     cart.map((it) => (
                       <div key={it.product.id} className="flex items-center gap-3 py-1">
-                        <img
+                        {/* <img
                           src={resolveImageUrl(it.product.image || it.product.image_url)}
                           alt={it.product.name}
                           className="h-8 w-8 rounded border bg-gray-200"
-                        />
+                        /> */}
                         <div className="flex-1">
                           <div className="text-xs font-semibold text-gray-800">{it.product.name}</div>
                           <div className="text-xs text-gray-700">{it.product.category} • {it.product.brand}</div>
@@ -1007,12 +1033,9 @@ export default function Dashboard() {
                 </div>
 
                 <div className="flex gap-2 mt-3">
-                  <button onClick={() => navigateToPayment("CASH")} className="flex-1 px-3 py-2 text-sm bg-blue-600 text-white font-semibold rounded">CASH</button>
                   <button onClick={() => navigateToPayment("CARD")} className="px-3 py-2 text-sm bg-blue-600 text-white font-semibold rounded">CARD</button>
-                  <button onClick={() => navigateToPayment("LOYALTY")} className="px-3 py-2 text-sm bg-blue-600 text-white font-semibold rounded">LOYALTY</button>
                 </div>
 
-                <button onClick={() => navigateToPayment("WALLET")} className="mt-2 w-full px-3 py-2 text-sm bg-blue-600 text-white font-semibold rounded">DIGITAL WALLET</button>
 
                 <div className="mt-3 flex gap-4 justify-center items-center">
                   <button title="Print" className="p-3 bg-blue-50 border rounded-full text-blue-700 hover:bg-blue-100 hover:scale-105 transition">
@@ -1024,16 +1047,6 @@ export default function Dashboard() {
                   <button title="Message" className="p-3 bg-yellow-50 border rounded-full text-yellow-700 hover:bg-yellow-100 hover:scale-105 transition">
                     <IoChatbubbleEllipsesOutline size={22} />
                   </button>
-                </div>
-              </div>
-
-              <div className="bg-white rounded-2xl shadow p-4">
-                <h4 className="text-xs font-semibold text-blue-900 mb-2">Actions</h4>
-                <div className="grid grid-cols-2 gap-2">
-                  <button onClick={() => handleVoidOrder()} className="w-full px-3 py-2 text-xs bg-blue-100 text-blue-800 border font-semibold rounded">VOID</button>
-                  <button onClick={() => handleHoldOrder()} className="w-full px-3 py-2 text-xs bg-blue-100 text-blue-800 border font-semibold rounded">HOLD</button>
-                  <button className="w-full px-3 py-2 text-xs bg-blue-100 text-blue-800 border font-semibold rounded">DISCOUNT</button>
-                  <button className="w-full px-3 py-2 text-xs bg-blue-100 text-blue-800 border font-semibold rounded">CUSTOMER LOOKUP</button>
                 </div>
               </div>
             </aside>

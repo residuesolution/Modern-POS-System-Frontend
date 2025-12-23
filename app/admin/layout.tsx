@@ -6,7 +6,9 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   const pathname = usePathname();
   let active = "";
 
-  if (pathname && pathname.includes("hardware-status")) active = "hardware";
+  // check the more specific ai-dashboard first so it doesn't get overridden
+  if (pathname && pathname.includes("ai-dashboard")) active = "ai-dashboard";
+  else if (pathname && pathname.includes("hardware-status")) active = "hardware";
   else if (pathname && pathname.includes("system-configuration")) active = "system";
   else if (pathname && pathname.includes("dashboard")) active = "dashboard";
   
