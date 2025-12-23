@@ -39,7 +39,13 @@ export default function AdminSidebar({ active }: { active: string }) {
     dashboard: (
       <svg width="22" height="22" fill="none" viewBox="0 0 24 24"><path d="M3 13h8V3H3v10zm0 8h8v-6H3v6zm10 0h8V11h-8v10zm0-18v6h8V3h-8z" fill="#4097c0"/></svg>
     ),
-    
+    ai: (
+      // simple stylized AI / spark icon
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
+        <path d="M12 2v3M12 19v3M4.2 4.2l2.1 2.1M17.7 17.7l2.1 2.1M2 12h3M19 12h3" stroke="#4097c0" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+        <circle cx="12" cy="12" r="3.2" stroke="#4097c0" strokeWidth="1.5" />
+      </svg>
+    ),
     inventory: (
       <svg width="22" height="22" fill="none" viewBox="0 0 24 24"><path d="M20 6H4V4h16v2zm0 2v12H4V8h16zm-2 2H6v8h12v-8z" fill="#4097c0"/></svg>
     ),
@@ -105,15 +111,30 @@ export default function AdminSidebar({ active }: { active: string }) {
       <nav className="flex-1 py-6">
         <ul className="space-y-4">
           <li>
-            <Link href="/dashboard">
-              <div
-                className={`flex items-center px-4 py-2 cursor-pointer hover:bg-blue-50 rounded-lg 
-                ${active === "dashboard" ? "bg-blue-100 text-blue-900 font-bold" : "text-blue-800"}`}
-              >
-                <span className="mr-3">{icons.dashboard}</span>
-                {open && "Dashboard"}
+            <div>
+              <Link href="/dashboard">
+                <div
+                  className={`flex items-center px-4 py-2 cursor-pointer hover:bg-blue-50 rounded-lg 
+                  ${active === "dashboard" ? "bg-blue-100 text-blue-900 font-bold" : "text-blue-800"}`}
+                >
+                  <span className="mr-3">{icons.dashboard}</span>
+                  {open && "Dashboard"}
+                </div>
+              </Link>
+
+              {/* AI Dashboard sub-item (indented) */}
+              <div className="ml-6 mt-2">
+                <Link href="/ai-dashboard">
+                  <div
+                    className={`flex items-center px-3 py-1.5 cursor-pointer rounded-md text-sm
+                      ${active === "ai-dashboard" ? "bg-blue-100 text-blue-900 font-semibold" : "text-blue-700 hover:bg-blue-50"}`}
+                  >
+                    <span className="mr-2">{icons.ai}</span>
+                    {open && "AI Dashboard"}
+                  </div>
+                </Link>
               </div>
-            </Link>
+            </div>
           </li>
           
           <li>

@@ -160,8 +160,7 @@ export default function CreateBill({ onBillCreated }: { onBillCreated?: (bill: a
         >
           <option value="CASH">Cash</option>
           <option value="CARD">Card</option>
-          <option value="LOYALTY">Loyalty</option>
-          <option value="WALLET">Digital Wallet</option>
+          
         </select>
       </div>
 
