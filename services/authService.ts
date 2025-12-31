@@ -460,18 +460,39 @@ export async function fetchCategories() {
 }
 
 // ...existing exports...
+// processPayment in services/authService.ts
 export async function processPayment(payload: any) {
   const base = API_BASE;
   const url = `${base}${apiConfig.endpoints.payments.PROCESS}`;
   const token = typeof window !== "undefined" ? localStorage.getItem("authToken") : null;
-  const headers: Record<string,string> = { "Content-Type": "application/json" };
+  const headers: Record<string, string> = { "Content-Type": "application/json" };
   if (token) headers["Authorization"] = `Bearer ${token}`;
+
   const res = await fetch(url, { method: "POST", headers, body: JSON.stringify(payload) });
+  const text = await res.text().catch(() => null);
+
   if (!res.ok) {
-    const err = await res.text().catch(()=>null);
-    throw new Error(err || `Payment failed ${res.status}`);
+    // try parse JSON error
+    let errMsg = `Payment failed ${res.status}`;
+    if (text) {
+      try {
+        const parsed = JSON.parse(text);
+        errMsg = parsed?.message ?? parsed?.error ?? JSON.stringify(parsed);
+      } catch {
+        errMsg = text;
+      }
+    }
+    throw new Error(errMsg);
   }
-  return res.json();
+
+  if (!text) return null;
+  try {
+    const body = JSON.parse(text);
+    // backend returns { status: "success", data: <PaymentResponse> }
+    return body?.data ?? body;
+  } catch {
+    return text;
+  }
 }
 
 export default {

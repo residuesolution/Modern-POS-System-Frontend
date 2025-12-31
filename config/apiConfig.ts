@@ -57,8 +57,14 @@ export const apiConfig = {
     },
     supplier: {
       SUPPLIER_ORDER: '/api/supplier-order'
-    }
+    },
+     ai: {
+      RECOMMEND: '/api/ai/recommend',
+      PROMO: '/api/ai/promo',
+      FRAUD_SCORE: '/api/ai/fraud-score',
+      REORDER_SUGGESTIONS: '/api/ai/reorder-suggestions',
+    },
   },
-  timeout: 10000,
+  timeout: 30000,
   maxRetries: 3,
 };
