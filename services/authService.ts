@@ -1,13 +1,44 @@
 import axios from "axios";
 import { apiConfig } from "../config/apiConfig";
+import client from "../utils/appClient";
 
 const API_BASE_URL = apiConfig.baseUrl;
+const API_BASE = process.env.NEXT_PUBLIC_API_URL || API_BASE_URL;
+console.log("API_BASE_URL:", API_BASE_URL);
 
 interface AuthResponse {
   token: string;
   status: string;
   id?: number;
   [key: string]: any;
+}
+
+// --- helper functions (existing exports) ---
+
+export async function emailOrderReceipt(orderId: number, email?: string) {
+  const body = email ? { email } : {};
+  const res = await client.post(`${apiConfig.endpoints.orders.EMAIL}${orderId}`, body);
+  return res.data;
+}
+
+export async function smsOrderReceipt(orderId: number, phone: string) {
+  const res = await client.post(`${apiConfig.endpoints.orders.SMS}${orderId}`, { phone });
+  return res.data;
+}
+
+export async function printOrderReceipt(orderId: number) {
+  const res = await client.post(`${apiConfig.endpoints.orders.PRINT}${orderId}`);
+  return res.data;
+}
+
+export async function holdOrder(orderId: number) {
+  const res = await client.post(`${apiConfig.endpoints.orders.HOLD}${orderId}`);
+  return res.data;
+}
+
+export async function voidOrder(orderId: number) {
+  const res = await client.post(`${apiConfig.endpoints.orders.VOID}${orderId}`);
+  return res.data;
 }
 
 export async function loginUser(username: string, password: string) {
@@ -82,7 +113,6 @@ export const resetPassword = async (token: string, password: string) => {
   return response.data;
 };
 
-// --- WebAuthn Biometric Authentication ---
 export const getWebAuthnRegistrationOptions = async (email: string) => {
   const response = await axios.post(
     `${API_BASE_URL}${apiConfig.endpoints.auth.WEBAUTHN_REGISTER_OPTIONS}`,
@@ -134,13 +164,13 @@ export const verifyWebAuthnLogin = async (
   return response.data;
 };
 
-// --- Admin APIs for Hardware Status & System Configuration ---
+// Admin / Profile / Help / Product APIs (kept as-is)
 export const fetchHardwareStatus = async () => {
   const token = localStorage.getItem("authToken");
   const res = await axios.get(
     `${API_BASE_URL}${apiConfig.endpoints.admin.HARDWARE_STATUS}`,
     {
-      headers: { Authorization: `Bearer ${token}` }
+      headers: { Authorization: `Bearer ${token}` },
     }
   );
   return res.data;
@@ -151,33 +181,25 @@ export const fetchSystemConfig = async () => {
   const res = await axios.get(
     `${API_BASE_URL}${apiConfig.endpoints.admin.SYSTEM_CONFIG}`,
     {
-      headers: { Authorization: `Bearer ${token}` }
+      headers: { Authorization: `Bearer ${token}` },
     }
   );
   return res.data;
 };
 
-// --- Profile APIs ---
 export const fetchCurrentUser = async () => {
   const token = localStorage.getItem("authToken");
-  const res = await axios.get(
-    `${API_BASE_URL}/api/auth/me`,
-    {
-      headers: { Authorization: `Bearer ${token}` }
-    }
-  );
+  const res = await axios.get(`${API_BASE_URL}/api/auth/me`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
   return res.data;
 };
 
 export const updateCurrentUser = async (userData: any) => {
   const token = localStorage.getItem("authToken");
-  const res = await axios.put(
-    `${API_BASE_URL}/api/auth/me`,
-    userData,
-    {
-      headers: { Authorization: `Bearer ${token}` }
-    }
-  );
+  const res = await axios.put(`${API_BASE_URL}/api/auth/me`, userData, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
   return res.data;
 };
 
@@ -185,16 +207,12 @@ export const uploadProfilePhoto = async (file: File) => {
   const token = localStorage.getItem("authToken");
   const formData = new FormData();
   formData.append("file", file);
-  const res = await axios.post(
-    `${API_BASE_URL}/api/user/me/photo`,
-    formData,
-    {
-      headers: {
-        Authorization: `Bearer ${token}`,
-        "Content-Type": "multipart/form-data"
-      }
-    }
-  );
+  const res = await axios.post(`${API_BASE_URL}/api/user/me/photo`, formData, {
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "multipart/form-data",
+    },
+  });
   return res.data;
 };
 
@@ -203,48 +221,271 @@ export const fetchHelpContent = async () => {
   return res.data;
 };
 
-export const sendHelpFeedback = async ({ email, feedback }: { email: string; feedback: string }) => {
-  const res = await axios.post(
-    `${API_BASE_URL}/api/help/feedback`,
-    { userEmail: email, feedback }
-  );
+export const sendHelpFeedback = async ({
+  email,
+  feedback,
+}: {
+  email: string;
+  feedback: string;
+}) => {
+  const res = await axios.post(`${API_BASE_URL}/api/help/feedback`, {
+    userEmail: email,
+    feedback,
+  });
   return res.data;
 };
 
-// --- Product Search ---
+// Search, product by barcode, createBill (kept, with binary handling)
 export async function searchProducts(query: string) {
-  const res = await axios.get(`${API_BASE_URL}/api/products/search`, { params: { q: query } });
-  return res.data;
+  if (!query || !query.trim()) return [];
+  const base = API_BASE;
+  const url = `${base}${apiConfig.endpoints.product.SEARCH}?q=${encodeURIComponent(query)}`;
+
+  const token = typeof window !== "undefined" ? localStorage.getItem("authToken") : null;
+  const headers: Record<string, string> = { Accept: "application/json" };
+
+  if (token) {
+    headers["Authorization"] = `Bearer ${token}`;
+  } else {
+    console.warn("[searchProducts] no auth token found in localStorage (authToken)");
+  }
+
+  const res = await fetch(url, { headers });
+  const text = await res.text();
+  if (!res.ok) {
+    throw new Error(`Search failed (${res.status})`);
+  }
+  if (!text.trim()) return [];
+  try {
+    const json = JSON.parse(text);
+    return Array.isArray(json) ? json : json?.data || json?.items || [];
+  } catch {
+    return [];
+  }
 }
 
-// --- Order Search ---
 export async function searchOrders(query: string) {
-  const res = await axios.get(`${API_BASE_URL}/api/orders/search`, { params: { q: query } });
-  return res.data;
+  if (!query || !query.trim()) return [];
+  const base = API_BASE;
+  const url = `${base}${apiConfig.endpoints.orders.SEARCH}?q=${encodeURIComponent(query)}`;
+
+  const token = typeof window !== "undefined" ? localStorage.getItem("authToken") : null;
+  const headers: Record<string, string> = { Accept: "application/json" };
+
+  if (token) {
+    headers["Authorization"] = `Bearer ${token}`;
+  } else {
+    console.warn("[searchOrders] no auth token found in localStorage (authToken)");
+  }
+
+  const res = await fetch(url, { headers });
+  const text = await res.text();
+  if (!res.ok) {
+    throw new Error(`Search failed (${res.status})`);
+  }
+  if (!text.trim()) return [];
+  try {
+    const json = JSON.parse(text);
+    return Array.isArray(json) ? json : json?.data || json?.items || [];
+  } catch {
+    return [];
+  }
 }
 
-// --- Notifications ---
 export async function fetchNotifications() {
-  const token = localStorage.getItem("authToken");
-  if (!token) throw new Error("Not authenticated");
-  const res = await axios.get(
-    `${API_BASE_URL}/api/notifications`,
-    { headers: { Authorization: `Bearer ${token}` } }
-  );
+  const res = await client.get("/api/notifications");
   return res.data;
 }
 
+// fetchProductByBarcode — use config endpoint
 export async function fetchProductByBarcode(barcode: string) {
-  const res = await axios.get(`${API_BASE_URL}/api/product/barcode/${barcode}`);
-  return res.data;
+  if (!barcode) throw new Error("barcode required");
+  const base = API_BASE;
+  const token = typeof window !== "undefined" ? localStorage.getItem("authToken") : null;
+
+  const url = `${base}${apiConfig.endpoints.product.BARCODE}${encodeURIComponent(barcode)}`;
+  const res = await fetch(url, {
+    method: "GET",
+    headers: {
+      "Content-Type": "application/json",
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+  });
+
+  if (res.status === 404) {
+    return null; // caller can handle null as "not found"
+  }
+  if (!res.ok) {
+    const body = await res.text().catch(() => null);
+    throw new Error(body || `HTTP ${res.status}`);
+  }
+  return await res.json();
 }
 
-export async function createBill(data: { order: any, items: any[] }) {
-  const token = localStorage.getItem("authToken");
-  const res = await axios.post(
-    `${API_BASE_URL}/api/orders/add`,
-    data,
-    { headers: { Authorization: `Bearer ${token}` } }
-  );
-  return res.data;
+export async function createBill(data: { order: any; items: any[] }) {
+  const res = await client.post(`${apiConfig.endpoints.orders.ADD}`, data, { responseType: "arraybuffer", timeout: 60000 });
+  const contentType = (res.headers && (res.headers["content-type"] || res.headers["Content-Type"]))?.toLowerCase() || "";
+  const raw = res.data as ArrayBuffer | Uint8Array;
+  const arr = raw instanceof ArrayBuffer ? new Uint8Array(raw) : new Uint8Array(raw);
+
+  if (contentType.includes("application/json")) {
+    const text = new TextDecoder("utf-8").decode(arr);
+    try {
+      return JSON.parse(text);
+    } catch {
+      return { text };
+    }
+  }
+
+  if (contentType.includes("application/pdf")) {
+    const blob = new Blob([arr], { type: "application/pdf" });
+    return { pdf_blob: blob };
+  }
+
+  const text = new TextDecoder("utf-8").decode(arr);
+  if (contentType.includes("text/html") || text.trim().startsWith("<")) {
+    return { html: text };
+  }
+
+  return { text };
 }
+
+// helper to compose headers
+const buildHeaders = (extra?: Record<string, string>) => {
+  const token = localStorage.getItem("authToken");
+  return {
+    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    ...(extra || {}),
+  };
+};
+
+// Face / categories etc. (kept)
+export async function registerFace(email: string, embedding: number[]) {
+  try {
+    const res = await axios.post(
+      `${API_BASE_URL}${apiConfig.endpoints.auth.FACEID_REGISTER}`,
+      { email, embedding },
+      {
+        headers: buildHeaders({ "Content-Type": "application/json" }),
+      }
+    );
+    return res.data;
+  } catch (err: any) {
+    throw new Error(err.response?.data?.message || err.message || "Face registration failed");
+  }
+}
+
+export async function loginFace(email: string, embedding: number[]) {
+  try {
+    const res = await axios.post<AuthResponse>(
+      `${API_BASE_URL}${apiConfig.endpoints.auth.FACEID_LOGIN}`,
+      { email, embedding },
+      {
+        headers: buildHeaders({ "Content-Type": "application/json" }),
+      }
+    );
+    if (res.data?.token) {
+      localStorage.setItem("authToken", res.data.token);
+      if (res.data.id) localStorage.setItem("userId", String(res.data.id));
+    }
+    return res.data;
+  } catch (err: any) {
+    if (err.response?.status === 401) {
+      throw new Error("Unauthorized: face login rejected by server.");
+    }
+    throw new Error(err.response?.data?.message || err.message || "Face login failed");
+  }
+}
+
+export async function getFace(email: string) {
+  try {
+    const res = await axios.get(
+      `${API_BASE_URL}${apiConfig.endpoints.auth.FACEID_GET}${encodeURIComponent(email)}`,
+      { headers: buildHeaders() }
+    );
+    return res.data;
+  } catch (err: any) {
+    if (err.response?.status === 401) {
+      throw new Error("Unauthorized: missing or invalid token.");
+    }
+    throw new Error(err.response?.data?.message || err.message || "Failed to get face data");
+  }
+}
+
+export async function updateFace(email: string, embedding: number[]) {
+  try {
+    const res = await axios.put(
+      `${API_BASE_URL}${apiConfig.endpoints.auth.FACEID_UPDATE}`,
+      { email, embedding },
+      { headers: buildHeaders({ "Content-Type": "application/json" }) }
+    );
+    return res.data;
+  } catch (err: any) {
+    if (err.response?.status === 401) {
+      throw new Error("Unauthorized: missing or invalid token.");
+    }
+    throw new Error(err.response?.data?.message || err.message || "Failed to update face data");
+  }
+}
+
+export async function deleteFace(email: string) {
+  try {
+    const res = await axios.delete(
+      `${API_BASE_URL}${apiConfig.endpoints.auth.FACEID_DELETE}${encodeURIComponent(email)}`,
+      { headers: buildHeaders() }
+    );
+    return res.data;
+  } catch (err: any) {
+    if (err.response?.status === 401) {
+      throw new Error("Unauthorized: missing or invalid token.");
+    }
+    throw new Error(err.response?.data?.message || err.message || "Failed to delete face data");
+  }
+}
+
+// categories
+export async function fetchCategories() {
+  const base = API_BASE;
+  const url = `${base}/api/category`;
+  const token = typeof window !== "undefined" ? localStorage.getItem("authToken") : null;
+  const headers: Record<string, string> = { Accept: "application/json" };
+  if (token) headers["Authorization"] = `Bearer ${token}`;
+  const res = await fetch(url, { headers });
+  if (!res.ok) return [];
+  const data = await res.json();
+  if (Array.isArray(data)) return data;
+  if (Array.isArray(data?.data)) return data.data;
+  if (Array.isArray(data?.items)) return data.items;
+  return [];
+}
+
+// ...existing exports...
+export async function processPayment(payload: any) {
+  const base = API_BASE;
+  const url = `${base}${apiConfig.endpoints.payments.PROCESS}`;
+  const token = typeof window !== "undefined" ? localStorage.getItem("authToken") : null;
+  const headers: Record<string,string> = { "Content-Type": "application/json" };
+  if (token) headers["Authorization"] = `Bearer ${token}`;
+  const res = await fetch(url, { method: "POST", headers, body: JSON.stringify(payload) });
+  if (!res.ok) {
+    const err = await res.text().catch(()=>null);
+    throw new Error(err || `Payment failed ${res.status}`);
+  }
+  return res.json();
+}
+
+export default {
+  fetchCurrentUser,
+  fetchNotifications,
+  fetchProductByBarcode,
+  createBill,
+  emailOrderReceipt,
+  smsOrderReceipt,
+  printOrderReceipt,
+  holdOrder,
+  voidOrder,
+  searchProducts,
+  searchOrders,
+  fetchCategories,
+  processPayment,
+};

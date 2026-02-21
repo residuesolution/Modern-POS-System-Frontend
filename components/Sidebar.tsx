@@ -65,6 +65,12 @@ export default function AdminSidebar({ active }: { active: string }) {
     system: (
       <svg width="22" height="22" fill="none" viewBox="0 0 24 24"><path d="M12 15.5A3.5 3.5 0 1112 8a3.5 3.5 0 010 7.5zm7.94-2.34l-1.43-1.43a7.007 7.007 0 00.01-2.46l1.43-1.43a.996.996 0 00-.01-1.41l-2.12-2.12a.996.996 0 00-1.41-.01l-1.43 1.43a7.007 7.007 0 00-2.46-.01l-1.43-1.43a.996.996 0 00-1.41.01l-2.12 2.12a.996.996 0 00-.01 1.41l1.43 1.43a7.007 7.007 0 00-.01 2.46l-1.43 1.43a.996.996 0 00.01 1.41l2.12 2.12a.996.996 0 001.41.01l1.43-1.43a7.007 7.007 0 002.46.01l1.43 1.43a.996.996 0 001.41-.01l2.12-2.12a.996.996 0 00.01-1.41z" fill="#4097c0"/></svg>
     ),
+    ai: (
+      <svg width="22" height="22" fill="none" viewBox="0 0 24 24">
+        <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" stroke="#4097c0" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+        <circle cx="12" cy="12" r="3" fill="#4097c0"/>
+      </svg>
+    ),
     help: (
       <svg width="22" height="22" fill="none" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" stroke="#4097c0" strokeWidth="2"/><path d="M12 17h.01M12 13a2 2 0 10-2-2" stroke="#4097c0" strokeWidth="2" strokeLinecap="round"/></svg>
     ),
@@ -130,7 +136,7 @@ export default function AdminSidebar({ active }: { active: string }) {
             </Link>
           </li>
           <li>
-            <Link href="/inventory">
+            <Link href="/admin/product/view">
               <div
                 className={`flex items-center px-4 py-2 cursor-pointer hover:bg-blue-50 rounded-lg
                 ${active === "inventory" ? "bg-blue-100 text-blue-900 font-bold" : "text-blue-800"}`}
@@ -142,7 +148,7 @@ export default function AdminSidebar({ active }: { active: string }) {
             </Link>
           </li>
           <li>
-            <Link href="/customers">
+            <Link href="/admin/customer/view">
               <div
                 className={`flex items-center px-4 py-2 cursor-pointer hover:bg-blue-50 rounded-lg 
                ${active === "customers" ? "bg-blue-100 text-blue-900 font-bold" : "text-blue-800"}`}

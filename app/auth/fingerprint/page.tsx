@@ -17,24 +17,38 @@ export default function FingerprintLogin() {
   const router = useRouter();
 
   // Registration flow
+  // ...existing code...
   const handleRegister = async () => {
     setIsLoading(true);
     setMessage("");
     try {
       const options = await getWebAuthnRegistrationOptions(email);
       const credential = await startRegistration(options);
-      const result = await verifyWebAuthnRegistration(email, credential) as { message?: string };
-      if (result.message && result.message.toLowerCase().includes("already registered")) {
-        setMessage("You have already registered biometric for this account.");
+      const res = await verifyWebAuthnRegistration(email, credential) as any;
+
+      // backend may return 409 when credential already bound to another email
+      if (res?.status === 409 || res?.message?.toLowerCase().includes("already registered to another")) {
+        setMessage("This fingerprint is already registered to a different account.");
         return;
       }
-      setMessage(result.message || "Fingerprint registered!");
+
+      if (res?.message?.toLowerCase().includes("already registered")) {
+        setMessage("Fingerprint already registered for this account.");
+        return;
+      }
+
+      setMessage(res?.message || "Fingerprint registered successfully.");
     } catch (err: any) {
-      setMessage(err?.message || "Registration failed");
+      if (err?.response?.status === 409) {
+        setMessage("This fingerprint is already registered to a different account.");
+      } else {
+        setMessage(err?.response?.data?.message || err?.message || "Registration failed");
+      }
     } finally {
       setIsLoading(false);
     }
   };
+// ...existing code...
 
   // Login flow
   const handleLogin = async () => {
@@ -45,7 +59,6 @@ export default function FingerprintLogin() {
       const assertion = await startAuthentication(options);
       const result = await verifyWebAuthnLogin(email, assertion) as { message?: string; token?: string };
       setMessage(result.message || "Login successful!");
-      // Store JWT in cookie if returned
       if (result.token) {
         document.cookie = `JWT=${result.token}; path=/; max-age=3600;`;
         localStorage.setItem("authToken", result.token);
@@ -105,7 +118,7 @@ export default function FingerprintLogin() {
                 onClick={handleLogin}
                 disabled={isLoading || !email}
               >
-                {isLoading ? "Authenticating..." : "Login with Fingerprint"}
+                {isLoading ? "Authenticating..." : "Login Fingerprint"}
               </button>
             </form>
             {message && (
@@ -118,4 +131,4 @@ export default function FingerprintLogin() {
       </div>
     </div>
   );
-}
+} 
